@@ -1,0 +1,18 @@
+body { font-family: sans-serif; line-height: 1.6; color: #333; max-width: 900px; margin: 20px auto; padding: 0 20px; background-color: #f4f4f4; }
+nav { background: #fff; padding: 10px; border-radius: 5px; margin-bottom: 20px; }
+nav a { margin-right: 15px; text-decoration: none; color: #007bff; }
+nav span { float: right; color: #555; }
+.alert { padding: 15px; margin-bottom: 20px; border: 1px solid transparent; border-radius: 4px; }
+.alert-info { color: #31708f; background-color: #d9edf7; border-color: #bce8f1; }
+.alert-success { color: #3c763d; background-color: #dff0d8; border-color: #d6e9c6; }
+.alert-danger { color: #a94442; background-color: #f2dede; border-color: #ebccd1; }
+.item { margin-bottom: 2rem; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #fff; }
+.item-label { font-weight: bold; }
+.comment-section { margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee; }
+.comment { border-left: 3px solid #ccc; padding: 10px; margin-top: 10px; background: #fafafa; }
+.comment.is-reply { margin-left: 40px; border-left-color: #aaa; }
+.comment-author { font-weight: bold; }
+.comment-meta { font-size: 0.8em; color: #777; }
+textarea { width: 98%; }
+button { background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 5px;}
+button:hover { background-color: #0056b3; }

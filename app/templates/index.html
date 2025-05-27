@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% macro render_comment(comment) %}
+<div class="comment {% if comment.parent_id %}is-reply{% endif %}">
+    <div class="comment-author">{{ comment.author.username }}</div>
+    <div class="comment-text">{{ comment.comment_text }}</div>
+    <div class="comment-meta">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+    <details>
+        <summary>Reageren</summary>
+        <form method="post" class="reply-form">
+            <input type="hidden" name="element_path" value="{{ comment.element_path }}">
+            <input type="hidden" name="parent_id" value="{{ comment.id }}">
+            <textarea name="comment_text" rows="2" required></textarea>
+            <button type="submit">Plaats Reactie</button>
+        </form>
+    </details>
+    
+    {% if comment.replies %}
+        {% for reply in comment.replies %}
+            {{ render_comment(reply) }} {# Recursieve aanroep voor replies #}
+        {% endfor %}
+    {% endif %}
+</div>
+{% endmacro %}
+
+
+{% block content %}
+    <h1>{{ questionnaire.name.value }}</h1>
+    <div class="questionnaire-container">
+    {% for item in questionnaire.content %}
+        {# Vereenvoudigde weergave voor de demo #}
+        {% for element in item.data.events[0].data.items %}
+        <div class="item">
+            <span class="item-label">{{ element.name.value }}:</span>
+            <span class="item-value">{{ element.value.magnitude }} {{ element.value.units }}</span>
+            <div class="comment-section">
+                <h4>Commentaren</h4>
+                {% set element_path = '/content[openEHR-EHR-OBSERVATION.blood_pressure.v2:0]/data/events/data/items[' ~ element.archetype_node_id ~ ']' %}
+                
+                {% if comments_by_path[element_path] %}
+                    {% for comment in comments_by_path[element_path] %}
+                        {{ render_comment(comment) }}
+                    {% endfor %}
+                {% else %}
+                    <p><i>Nog geen opmerkingen.</i></p>
+                {% endif %}
+
+                <hr>
+                <form method="post">
+                    <input type="hidden" name="element_path" value="{{ element_path }}">
+                    <label for="comment_text">Nieuw commentaar toevoegen:</label><br>
+                    <textarea name="comment_text" id="comment_text" rows="3" required></textarea><br>
+                    <button type="submit">Plaats Commentaar</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    {% endfor %}
+    </div>
+{% endblock %}
