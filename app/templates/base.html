@@ -8,14 +8,7 @@
 </head>
 <body>
     <nav>
-        <a href="{{ url_for('main.index') }}">Home</a>
-        {% if current_user.is_anonymous %}
-        <a href="{{ url_for('main.login') }}">Inloggen</a>
-        <a href="{{ url_for('main.register') }}">Account Aanvragen</a>
-        {% else %}
-        <span>Welkom, {{ current_user.username }}</span>
-        <a href="{{ url_for('main.logout') }}">Uitloggen</a>
-        {% endif %}
+        <a href="{{ url_for('main.index') }}">OpenEHR Vragenlijst Review</a>
     </nav>
     <hr>
     <div class="content">

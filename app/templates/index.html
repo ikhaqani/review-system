@@ -2,7 +2,7 @@
 
 {% macro render_comment(comment) %}
 <div class="comment {% if comment.parent_id %}is-reply{% endif %}">
-    <div class="comment-author">{{ comment.author.username }}</div>
+    <div class="comment-author">{{ comment.author_name }}</div>
     <div class="comment-text">{{ comment.comment_text }}</div>
     <div class="comment-meta">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
     <details>
@@ -10,19 +10,25 @@
         <form method="post" class="reply-form">
             <input type="hidden" name="element_path" value="{{ comment.element_path }}">
             <input type="hidden" name="parent_id" value="{{ comment.id }}">
-            <textarea name="comment_text" rows="2" required></textarea>
+            <div>
+                <label for="author_name_reply_{{ comment.id }}">Uw naam:</label>
+                <input type="text" name="author_name" id="author_name_reply_{{ comment.id }}" required>
+            </div>
+            <div>
+                <label for="comment_text_reply_{{ comment.id }}">Uw reactie:</label>
+                <textarea name="comment_text" id="comment_text_reply_{{ comment.id }}" rows="2" required></textarea>
+            </div>
             <button type="submit">Plaats Reactie</button>
         </form>
     </details>
     
     {% if comment.replies %}
-        {% for reply in comment.replies %}
+        {% for reply in comment.replies.order_by('created_at') %}
             {{ render_comment(reply) }} {# Recursieve aanroep voor replies #}
         {% endfor %}
     {% endif %}
 </div>
 {% endmacro %}
-
 
 {% block content %}
     <h1>{{ questionnaire.name.value }}</h1>
@@ -35,7 +41,7 @@
             <span class="item-value">{{ element.value.magnitude }} {{ element.value.units }}</span>
             <div class="comment-section">
                 <h4>Commentaren</h4>
-                {% set element_path = '/content[openEHR-EHR-OBSERVATION.blood_pressure.v2:0]/data/events/data/items[' ~ element.archetype_node_id ~ ']' %}
+                {% set element_path = '/content[' ~ item.archetype_node_id ~ ':0]/data/events/data/items[' ~ element.archetype_node_id ~ ']' %}
                 
                 {% if comments_by_path[element_path] %}
                     {% for comment in comments_by_path[element_path] %}
@@ -48,8 +54,15 @@
                 <hr>
                 <form method="post">
                     <input type="hidden" name="element_path" value="{{ element_path }}">
-                    <label for="comment_text">Nieuw commentaar toevoegen:</label><br>
-                    <textarea name="comment_text" id="comment_text" rows="3" required></textarea><br>
+                    <h4>Nieuw commentaar toevoegen:</h4>
+                    <div>
+                        <label for="author_name_main">Uw naam:</label>
+                        <input type="text" name="author_name" id="author_name_main" required>
+                    </div>
+                    <div>
+                        <label for="comment_text_main">Uw commentaar:</label>
+                        <textarea name="comment_text" id="comment_text_main" rows="3" required></textarea>
+                    </div>
                     <button type="submit">Plaats Commentaar</button>
                 </form>
             </div>

@@ -1,9 +1,4 @@
 Flask
 Flask-SQLAlchemy
-Flask-Login
-Flask-WTF
-python-dotenv
-email-validator
-Werkzeug
 gunicorn
 psycopg2-binary
