@@ -47,10 +47,10 @@
             {% set elements_to_display = [] %}
             {% if item.data and item.data.get('events') and item.data.events and item.data.events[0].data and item.data.events[0].data.get('items') %}
                 {# Voor OBSERVATION-achtige structuur #}
-                {% set elements_to_display = item.data.events[0].data.items %}
+                {% set elements_to_display = item.data.events[0].data['items'] %}  
             {% elif item.data and item.data.get('items') %}
                 {# Voor EVALUATION, SECTION, CLUSTER etc. met items direct onder data #}
-                {% set elements_to_display = item.data.items %}
+                {% set elements_to_display = item.data['items'] %}  
             {% endif %}
 
             {% for element in elements_to_display %}
