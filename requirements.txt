@@ -5,4 +5,5 @@ Flask-WTF
 python-dotenv
 email-validator
 Werkzeug
-Gunicorn
+gunicorn
+psycopg2-binary
