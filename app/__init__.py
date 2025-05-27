@@ -10,11 +10,9 @@ def create_app(config_class=Config):
 
     db.init_app(app)
 
-    # Registreer de routes
     from app.routes import bp as main_bp
     app.register_blueprint(main_bp)
 
-    # Maak de database aan als deze nog niet bestaat
     with app.app_context():
         db.create_all()
 

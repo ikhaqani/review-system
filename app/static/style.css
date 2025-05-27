@@ -13,6 +13,8 @@ nav span { float: right; color: #555; }
 .comment.is-reply { margin-left: 40px; border-left-color: #aaa; }
 .comment-author { font-weight: bold; }
 .comment-meta { font-size: 0.8em; color: #777; }
-textarea { width: 98%; }
+textarea { width: 98%; box-sizing: border-box; padding: 5px; margin-bottom: 5px;}
+input[type="text"] { width: 98%; box-sizing: border-box; padding: 5px; margin-bottom: 5px;}
 button { background-color: #007bff; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; margin-top: 5px;}
 button:hover { background-color: #0056b3; }
+label { display: block; margin-top: 10px; margin-bottom: 3px; font-weight: bold;}

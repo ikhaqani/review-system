@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% macro render_comment(comment) %}
+{% macro render_comment(comment, element_path_for_reply_form) %}
 <div class="comment {% if comment.parent_id %}is-reply{% endif %}">
     <div class="comment-author">{{ comment.author_name }}</div>
     <div class="comment-text">{{ comment.comment_text }}</div>
@@ -8,7 +8,8 @@
     <details>
         <summary>Reageren</summary>
         <form method="post" class="reply-form">
-            <input type="hidden" name="element_path" value="{{ comment.element_path }}">
+            {# Gebruik het correcte element_path van het hoofditem voor de reply #}
+            <input type="hidden" name="element_path" value="{{ element_path_for_reply_form }}">
             <input type="hidden" name="parent_id" value="{{ comment.id }}">
             <div>
                 <label for="author_name_reply_{{ comment.id }}">Uw naam:</label>
@@ -23,51 +24,117 @@
     </details>
     
     {% if comment.replies %}
-        {% for reply in comment.replies.order_by('created_at') %}
-            {{ render_comment(reply) }} {# Recursieve aanroep voor replies #}
+        {% for reply in comment.replies.order_by(Comment.created_at.asc()) %}
+            {# Geef het element_path van het hoofditem door aan recursieve aanroepen #}
+            {{ render_comment(reply, element_path_for_reply_form) }}
         {% endfor %}
     {% endif %}
 </div>
 {% endmacro %}
 
-{% block content %}
-    <h1>{{ questionnaire.name.value }}</h1>
-    <div class="questionnaire-container">
-    {% for item in questionnaire.content %}
-        {# Vereenvoudigde weergave voor de demo #}
-        {% for element in item.data.events[0].data.items %}
-        <div class="item">
-            <span class="item-label">{{ element.name.value }}:</span>
-            <span class="item-value">{{ element.value.magnitude }} {{ element.value.units }}</span>
-            <div class="comment-section">
-                <h4>Commentaren</h4>
-                {% set element_path = '/content[' ~ item.archetype_node_id ~ ':0]/data/events/data/items[' ~ element.archetype_node_id ~ ']' %}
-                
-                {% if comments_by_path[element_path] %}
-                    {% for comment in comments_by_path[element_path] %}
-                        {{ render_comment(comment) }}
-                    {% endfor %}
-                {% else %}
-                    <p><i>Nog geen opmerkingen.</i></p>
-                {% endif %}
 
-                <hr>
-                <form method="post">
-                    <input type="hidden" name="element_path" value="{{ element_path }}">
-                    <h4>Nieuw commentaar toevoegen:</h4>
-                    <div>
-                        <label for="author_name_main">Uw naam:</label>
-                        <input type="text" name="author_name" id="author_name_main" required>
-                    </div>
-                    <div>
-                        <label for="comment_text_main">Uw commentaar:</label>
-                        <textarea name="comment_text" id="comment_text_main" rows="3" required></textarea>
-                    </div>
-                    <button type="submit">Plaats Commentaar</button>
-                </form>
+{% block content %}
+    <h1>{{ questionnaire.name.value if questionnaire and questionnaire.name else "Vragenlijst" }}</h1>
+    <div class="questionnaire-container">
+    {% if questionnaire and questionnaire.content %}
+        {% for item in questionnaire.content %} {# item is bv. een OBSERVATION, SECTION, etc. #}
+            {% set current_item_name = item.name.value if item.name else "Naamloze sectie" %}
+            <div class="item-section-header">
+                <h3>{{ current_item_name }} ({{ item.archetype_node_id }})</h3>
             </div>
-        </div>
+
+            {# Bepaal de lijst van elementen om te tonen #}
+            {% set elements_to_display = [] %}
+            {% if item.data and item.data.get('events') and item.data.events and item.data.events[0].data and item.data.events[0].data.get('items') %}
+                {# Voor OBSERVATION-achtige structuur #}
+                {% set elements_to_display = item.data.events[0].data.items %}
+            {% elif item.data and item.data.get('items') %}
+                {# Voor EVALUATION, SECTION, CLUSTER etc. met items direct onder data #}
+                {% set elements_to_display = item.data.items %}
+            {% endif %}
+
+            {% for element in elements_to_display %}
+                <div class="item">
+                    <span class="item-label">
+                        {{ element.name.value if element.name and element.name.value else "Naamloos element" }}:
+                        <small class="item-node-id">({{ element.archetype_node_id }})</small>
+                    </span>
+
+                    {% if element.value %}
+                        {% if element.value._type == 'DV_QUANTITY' %}
+                            <span class="item-value"><i>(Getal)</i> {{ element.value.units if element.value.units else "" }}</span>
+                        {% elif element.value._type == 'DV_TEXT' %}
+                            <span class="item-value"><i>(Tekst)</i></span>
+                        {% elif element.value._type == 'DV_CODED_TEXT' %}
+                            <span class="item-value"><i>(Keuzelijst)</i>
+                                {% if element.value.options %}
+                                    <select disabled>
+                                        <option value="">-- Selecteer --</option>
+                                        {% for option in element.value.options %}
+                                            <option value="{{ option.value }}">{{ option.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                {% endif %}
+                            </span>
+                        {% elif element.value._type == 'DV_BOOLEAN' %}
+                             <span class="item-value"><i>(Ja/Nee)</i></span>
+                        {% elif element.value._type == 'DV_DATE_TIME' %}
+                             <span class="item-value"><i>(Datum/Tijd)</i></span>
+                        {% elif element.value._type == 'DV_DATE' %}
+                             <span class="item-value"><i>(Datum)</i></span>
+                        {% elif element.value._type == 'DV_TIME' %}
+                             <span class="item-value"><i>(Tijd)</i></span>
+                        {% elif element.value._type == 'DV_COUNT' %}
+                             <span class="item-value"><i>(Aantal)</i></span>
+                        {% else %}
+                            <span class="item-value">(Data type: {{ element.value._type }})</span>
+                        {% endif %}
+                    {% else %}
+                        <span class="item-value">(Geen waarde-structuur gedefinieerd)</span>
+                    {% endif %}
+                    
+                    <div class="comment-section">
+                        <h4>Commentaren</h4>
+                        {# Gebruik het AQL pad dat vanuit Python komt #}
+                        {% set element_path = element.element_path_for_comments %}
+                        
+                        {% if comments_by_path[element_path] %}
+                            {% for comment in comments_by_path[element_path] %}
+                                {{ render_comment(comment, element_path) }}
+                            {% endfor %}
+                        {% else %}
+                            <p><i>Nog geen opmerkingen.</i></p>
+                        {% endif %}
+
+                        <hr>
+                        <form method="post">
+                            <input type="hidden" name="element_path" value="{{ element_path }}">
+                            <h4>Nieuw commentaar toevoegen:</h4>
+                            <div>
+                                <label for="author_name_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}">Uw naam:</label>
+                                <input type="text" name="author_name" id="author_name_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}" required>
+                            </div>
+                            <div>
+                                <label for="comment_text_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}">Uw commentaar:</label>
+                                <textarea name="comment_text" id="comment_text_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}" rows="3" required></textarea>
+                            </div>
+                            <button type="submit">Plaats Commentaar</button>
+                        </form>
+                    </div>
+                </div>
+            {% endfor %}
+            {% if not elements_to_display %}
+                <div class="item">
+                     <p><i>Geen direct displayable items gevonden in sectie: {{ current_item_name }}</i></p>
+                </div>
+            {% endif %}
+            <hr style="border-top: 2px solid #ccc; margin: 20px 0;">
         {% endfor %}
-    {% endfor %}
+    {% else %}
+        <p>Geen content gevonden in de template of template kon niet geladen worden.</p>
+        {% if questionnaire and questionnaire.name and (questionnaire.name.value == "Fout bij laden template" or questionnaire.name.value == "FOUT: Template bestand niet geladen of corrupt") %}
+            <p>Controleer of het bestand `app/templates_openehr/ACP-DUTCH.json` bestaat en correct is. Kijk ook in de server logs voor meer details.</p>
+        {% endif %}
+    {% endif %}
     </div>
 {% endblock %}
