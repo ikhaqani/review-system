@@ -1,13 +1,12 @@
-/* app/static/style.css - "WOW Effect" Professional Redesign */
+/* app/static/style.css - Finale versie */
 
 /* ===================================================================
  * ROOT VARIABELEN & DESIGN SYSTEM
- * Een compleet nieuw, high-end thema voor een "wow" effect.
  * =================================================================== */
  :root {
   /* Kleurenpalet: Professioneel, modern en met hoog contrast */
   --theme-primary: #0d9488;       /* Krachtig, modern groenblauw (Teal) */
-  --theme-primary-light: #f0fdfa;  /* Nog subtielere variant voor achtergronden/highlights */
+  --theme-primary-light: #f0fdfa;  /* Subtiele variant voor achtergronden/highlights */
   --theme-primary-dark: #0f766e;   /* Donkerdere variant voor hover/active states */
  
   --theme-text-primary: #111827;   /* Bijna-zwart voor maximale leesbaarheid */
@@ -41,19 +40,16 @@
   --spacing-xl: 2rem;     /* 32px */
   
   /* Variabelen specifiek voor de hiërarchische lijnen en indentatie */
-  --indent-base: var(--spacing-lg);       /* Basis padding links voor accordion headers (24px) */
-  --indent-step: var(--spacing-xl);       /* Extra indentatie per dieper niveau (32px) */
+  --indent-base: var(--spacing-lg); /* Basis inspringing (24px) */
+  --indent-step: var(--spacing-xl); /* Extra inspringing per dieper niveau (32px) */
  
-  --border-radius-sm: 4px;
-  --border-radius-md: 6px;
-  --border-radius-lg: 8px;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --global-header-height: 58px;
- }
+}
  
  /* Importeer Google Fonts voor de 'wow' factor */
  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap');
@@ -66,193 +62,176 @@
   background-color: var(--theme-bg-body);
   color: var(--theme-text-primary);
   font-size: var(--base-font-size);
-  line-height: var(--line-height-base);
+
   padding-top: var(--global-header-height);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
- }
+}
  
  .main-container {
   max-width: 1280px;
   margin: var(--spacing-xl) auto;
   padding: 0 var(--spacing-md);
- }
- 
- .content-panel {
   background-color: var(--theme-bg-panel);
   border-radius: var(--border-radius-lg);
   border: 1px solid var(--theme-border-soft);
   box-shadow: var(--shadow-md);
   overflow: hidden; 
- }
+}
+ 
+ .content-panel {
+  background-color: var(--theme-bg-panel); 
+}
  
  /* ===================================================================
-  * TITELBALK & ACCORDION (AANGEPAST)
+  * TITELBALK & REVIEWER INPUT
   * =================================================================== */
  .questionnaire-title-bar {
   background-color: var(--theme-bg-panel);
   padding: var(--spacing-md) var(--spacing-lg);
-  border-bottom: 1px solid var(--theme-border-soft);
-  position: sticky;
+
   top: var(--global-header-height);
   z-index: 1020;
   display: flex;
   justify-content: space-between;
   align-items: center;
- }
- .questionnaire-title-bar .h3 {
-  letter-spacing: var(--header-letter-spacing);
-  margin: 0;
- }
- 
- .accordion-item {
-  position: relative;
-  border-bottom: 1px solid var(--theme-border-soft) !important;
- }
- .accordion-item:last-child { border-bottom: none !important; }
- 
- .accordion-header { 
-   position: relative; 
- }
- 
- .accordion-header .accordion-button-static {
-  font-weight: 500; /* Iets lichter voor een verfijndere look */
-  font-size: 0.95rem;
-  color: var(--theme-text-secondary); /* Standaardkleur iets gedempter */
-  background-color: transparent;
-  padding-top: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  padding-right: var(--spacing-lg); 
-  width: 100%;
+}
+
+.title-bar-actions { /* WIJZIGING: Nieuwe class voor de rechterkant */
   display: flex;
   align-items: center;
-  transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
-  text-align: left;
-  position: relative; 
-  z-index: 1; 
-  border-left: 4px solid transparent; /* Nieuwe indicator, standaard onzichtbaar */
- }
- 
- /* Verbeterde hover- en actieve statussen */
- .accordion-header .accordion-button-static:hover { 
-    background-color: var(--theme-primary-light); 
+  gap: var(--spacing-md); /* Ruimte tussen reviewer input en export knop */
+}
+
+.reviewer-control { /* WIJZIGING: Wrapper voor reviewer label en input */
+  display: flex;
+  align-items: center;
+}
+
+.reviewer-control .form-label { /* WIJZIGING: Zorgt dat label goed uitlijnt */
+  margin-bottom: 0;
+}
+
+#globalAuthorName {
+  border: 1px solid var(--theme-border-strong);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+#globalAuthorName:focus {
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 3px var(--theme-focus-ring);
+}
+
+/* =================================================================================
+ *  Sectie Header (voor Hoofdstukken)
+ * ================================================================================= */
+.section-header {
+    padding: var(--spacing-md) 0 var(--spacing-lg); /* Boven en onder de titel */
+    border-bottom: 1px solid var(--theme-border-strong);
+    margin-bottom: var(--spacing-lg); /* Ruimte onder de header */
+    margin-left: var(--spacing-lg);
+    /* padding-left wordt impliciet door de p-3 van .content-panel */
+}
+
+.section-header .section-title {
+    font-size: 1.2rem;
+    font-weight: 700;
     color: var(--theme-text-primary);
-    border-left-color: var(--theme-primary-dark); /* Indicator zichtbaar bij hover */
- }
- 
- .accordion-item.is-active > .accordion-header > .accordion-button-static {
-  color: var(--theme-primary-dark);
-  background-color: var(--theme-primary-light);
-  font-weight: 600; /* Maak de actieve titel vetgedrukt */
-  border-left-color: var(--theme-primary); /* Sterkere indicator voor actieve sectie */
- }
- 
- .section-number {
+    letter-spacing: var(--header-letter-spacing);
+    margin: 0;
+}
+
+/* =================================================================================
+ * HIËRARCHISCHE WEERGAVE VAN SUBSECTIES
+ * ================================================================================= */
+
+.container-item {
+  border-bottom: 1px solid var(--theme-border-soft);
+}
+.container-item:last-child {
+  border-bottom: none;
+}
+
+.container-header {
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--theme-primary);
-  background-color: var(--theme-primary-light);
+  color: var(--theme-text-primary);
+  padding-top: var(--spacing-xs);
+  padding-bottom: var(--spacing-md);
+  padding-right: var(--spacing-lg); 
+  margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+.section-number {
+  font-weight: 600;
+
   padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--border-radius-sm);
-  font-size: 0.8rem;
+  border-radius: var(--border-radius-sm); /* Toegevoegd voor consistentie */
+  font-size: 1rem;
   line-height: 1;
-  transition: all var(--transition-fast);
   margin-right: var(--spacing-md);
- }
- 
- .accordion-item.is-active > .accordion-header > .accordion-button-static .section-number {
-  background-color: var(--theme-primary);
-  color: var(--theme-bg-panel);
- }
- 
- /* Verwijder het FontAwesome icoon (het pijltje) */
- .accordion-button-static::before { 
-     content: none !important; 
- }
- 
- .accordion-button::after { /* Zorg dat Bootstrap's default pijl verborgen is */
-     display: none !important; 
- } 
- 
- .accordion-body {
-  padding: 0; 
-  background-color: var(--theme-bg-panel);
- }
- 
- /* =================================================================================
-  * HIËRARCHISCHE WEERGAVE (AANGEPAST VOOR HOOFDSTUKKEN)
-  * ================================================================================= */
- 
- /* Stijl voor de HOOFDHOOFDSTUKKEN (level-0) */
- .accordion-item.level-0 > .accordion-header .accordion-button-static {
-     font-size: 1.05rem;
-     font-weight: 600;
-     color: var(--theme-text-primary);
-     background-color: var(--theme-bg-alt);
-     padding-left: calc(var(--spacing-md) - 4px) !important; /* Minder inspringen voor top level */
- }
- /* Hover- en actieve staat voor level-0 behoudt de algemene regels maar kan hier worden overschreven indien nodig */
- .accordion-item.level-0.is-active > .accordion-header > .accordion-button-static {
-     background-color: var(--theme-primary-light);
- }
- 
- 
- /* Dynamische padding voor SUB-SECTIES (level-1 en dieper).
-    De -4px compenseert voor de 4px linker border. */
- 
- /* Level 1 (eerste subniveau, bv. 1.1) */
- .accordion-item.level-1 > .accordion-header .accordion-button-static,
- .accordion-item.level-1 > .accordion-body .question-grid {
-     padding-left: calc(var(--indent-base) - 4px) !important;
- }
- 
- /* Level 2 (tweede subniveau, bv. 1.1.1) */
- .accordion-item.level-2 > .accordion-header .accordion-button-static,
- .accordion-item.level-2 > .accordion-body .question-grid {
-     padding-left: calc(var(--indent-base) + var(--indent-step) * 1 - 4px) !important;
- }
- 
- /* Level 3 (derde subniveau, bv. 1.1.1.1) */
- .accordion-item.level-3 > .accordion-header .accordion-button-static,
- .accordion-item.level-3 > .accordion-body .question-grid {
-     padding-left: calc(var(--indent-base) + var(--indent-step) * 2 - 4px) !important;
- }
- 
- /* Level 4 */
- .accordion-item.level-4 > .accordion-header .accordion-button-static,
- .accordion-item.level-4 > .accordion-body .question-grid {
-     padding-left: calc(var(--indent-base) + var(--indent-step) * 3 - 4px) !important;
- }
- 
- /* Level 5 */
- .accordion-item.level-5 > .accordion-header .accordion-button-static,
- .accordion-item.level-5 > .accordion-body .question-grid {
-     padding-left: calc(var(--indent-base) + var(--indent-step) * 4 - 4px) !important;
- }
- 
- 
+}
+
+.container-body {
+  padding-bottom: var(--spacing-sm);
+}
+.container-body > .question-grid:first-child {
+  padding-top: 0;
+}
+.container-body > .question-grid:last-child {
+  border-bottom: none;
+}
+
+/* Dynamische inspringing voor ALLE niveaus (0 t/m 5) */
+.container-item.level-0 > .container-header,
+.container-item.level-0 .question-grid {
+    padding-left: var(--indent-base) !important;
+}
+.container-item.level-1 > .container-header,
+.container-item.level-1 .question-grid {
+    padding-left: calc(var(--indent-base) + var(--indent-step) * 1) !important;
+}
+.container-item.level-2 > .container-header,
+.container-item.level-2 .question-grid {
+    padding-left: calc(var(--indent-base) + var(--indent-step) * 2) !important;
+}
+.container-item.level-3 > .container-header,
+.container-item.level-3 .question-grid {
+    padding-left: calc(var(--indent-base) + var(--indent-step) * 3) !important;
+}
+.container-item.level-4 > .container-header,
+.container-item.level-4 .question-grid {
+    padding-left: calc(var(--indent-base) + var(--indent-step) * 4) !important;
+}
+.container-item.level-5 > .container-header,
+.container-item.level-5 .question-grid {
+    padding-left: calc(var(--indent-base) + var(--indent-step) * 5) !important;
+}
+
 /* ===================================================================
- * VRAAG & INPUT GRID (AANGEPAST VOOR INLINE LAYOUT)
+ * VRAAG & INPUT GRID
  * =================================================================== */
 .question-grid {
-    display: flex; /* Veranderd van grid naar flexbox */
-    justify-content: space-between; /* Zorgt voor ruimte tussen vraag en input */
-    align-items: center; /* Lijnt de vraagtekst en het inputveld verticaal uit */
-    gap: var(--spacing-lg); /* Ruimte tussen de elementen */
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start; 
+    gap: var(--spacing-lg);
     padding-top: var(--spacing-md);
     padding-bottom: var(--spacing-md);
     padding-right: var(--spacing-lg);
-    /* padding-left wordt nog steeds per level hierboven geregeld */
     border-bottom: 1px solid var(--theme-border-soft);
 }
-.accordion-body > .question-grid:last-child { border-bottom: none; }
-
+.content-panel > .question-grid:last-child,
+.container-body > .question-grid:last-child { 
+    border-bottom: none; 
+}
 
 .question-details {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-xs);
-    flex-grow: 1; /* Zorgt dat dit element de beschikbare ruimte opvult */
-    /* Padding is niet meer nodig hier */
+    flex-grow: 1;
 }
 
 .question-name-text {
@@ -267,13 +246,13 @@
 }
 
 .question-value-area {
-    flex-shrink: 0; /* Voorkomt dat het inputveld krimpt */
+    
 }
 
 .question-value-area .form-check { margin: 0; }
  
  /* ===================================================================
-  * FORMULIEREN & TOM SELECT
+  * FORMULIEREN & SELECTS
   * =================================================================== */
  input.form-control-sm,
  select.form-select-sm, 
@@ -287,14 +266,10 @@
   padding: var(--spacing-sm) var(--spacing-md) !important;
   color: var(--theme-text-primary);
   width: 350px; 
+  max-width: 100%;
   box-shadow: var(--shadow-sm) !important;
   transition: all var(--transition-fast);
   box-sizing: border-box; 
- }
- 
- .ts-wrapper.form-select-sm {
-  width: 350px; 
-  position: relative;
  }
  
  input::placeholder, textarea::placeholder { color: var(--theme-text-placeholder); }
@@ -307,34 +282,21 @@
   box-shadow: 0 0 0 3px var(--theme-focus-ring) !important;
   outline: none;
  }
+
+select.form-select-sm {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    padding-right: var(--spacing-xl) !important;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%234b5563' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right var(--spacing-md) center;
+    background-size: 0.9em 0.9em;
+    cursor: pointer;
+}
  
- .ts-wrapper.form-select-sm .ts-control { 
-  cursor: pointer; 
-  width: 100%; 
- }
- 
- .ts-wrapper.form-select-sm::after {
-  content: '\f078';
-  font-family: "Font Awesome 6 Free";
-  font-weight: 900;
-  position: absolute;
-  top: 50%;
-  right: var(--spacing-md);
-  transform: translateY(-50%);
-  color: var(--theme-text-secondary);
-  font-size: 0.8em;
-  pointer-events: none;
-  transition: transform var(--transition-smooth);
- }
- .ts-wrapper.form-select-sm.focus::after { transform: translateY(-50%) rotate(180deg); }
- 
- .ts-wrapper.form-select-sm .ts-control > div:not([class*='-input']) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
- }
- 
- .ts-dropdown {
+.ts-wrapper.form-select-sm { width: 350px; position: relative; }
+.ts-dropdown {
   border: 1px solid var(--theme-border-strong) !important;
   border-radius: var(--border-radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
@@ -342,94 +304,106 @@
   margin-top: var(--spacing-sm) !important;
   overflow: hidden;
   min-width: 350px; 
- }
- .ts-dropdown .ts-dropdown-content {
-  max-height: 220px;
-  padding: var(--spacing-sm) 0;
- }
- .ts-dropdown .option {
+}
+.ts-dropdown .ts-dropdown-content { max-height: 220px; padding: var(--spacing-sm) 0; }
+.ts-dropdown .option {
   padding: var(--spacing-sm) var(--spacing-md);
   font-size: 0.9rem;
   transition: background-color var(--transition-fast), color var(--transition-fast);
- }
- .ts-dropdown .option:hover,
- .ts-dropdown .active {
+}
+.ts-dropdown .option:hover,
+.ts-dropdown .active {
   background-color: var(--theme-primary-light) !important;
   color: var(--theme-primary) !important;
- }
- 
- .ts-wrapper.form-select-sm .ts-control .clear-button {
-  right: 2.5rem;
-  opacity: 0.7;
- }
- 
- .form-check-input {
-     width: auto; 
-     margin-right: var(--spacing-sm);
- }
- .form-check-label {
-     font-weight: normal;
- }
- .form-check { 
-     display: flex;
-     align-items: center;
-     margin-bottom: var(--spacing-sm); 
- }
+}
+
+.form-check-input {
+    width: auto; 
+    margin-right: var(--spacing-sm);
+}
+.form-check-label {
+    font-weight: normal;
+}
+.form-check { 
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: var(--spacing-sm); 
+    margin-right: var(--spacing-md);
+}
  
  /* ===================================================================
   * COMMENTAAR SECTIE
   * =================================================================== */
- .comments-section {
+.comments-section {
+  flex-shrink: 0;
+  width: 300px;
+  border-left: 1px solid var(--theme-border-soft);
   padding-left: var(--spacing-lg);
-  margin-top: var(--spacing-lg); 
- }
- .comment-title {
-  font-size: 1rem;
+}
+.comment-title {
+  font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: var(--spacing-md);
   letter-spacing: var(--header-letter-spacing);
- }
- .comment {
+  color: var(--theme-text-secondary);
+}
+.comment {
   padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--theme-border-soft);
- }
- .comment:last-child { border-bottom: none; }
- .comment-author {
+  border-top: 1px solid var(--theme-border-soft);
+}
+.comments-list > .comment:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+.comment-author {
   font-weight: 600;
   color: var(--theme-text-primary);
   font-size: 0.85rem;
- }
- .comment-text {
+}
+.comment-text {
   margin: var(--spacing-xs) 0;
   line-height: var(--line-height-base);
- }
- .comment-meta {
+  word-wrap: break-word;
+}
+.comment-meta {
   font-size: 0.75rem;
   color: var(--theme-text-secondary);
   font-family: var(--font-mono);
- }
- .comment-form textarea {
-     width: 100%; 
+}
+.inline-comment-form, .new-comment-form {
+    margin-top: var(--spacing-md);
+}
+.inline-comment-form textarea,
+.new-comment-form textarea {
+     width: 100% !important; 
      min-height: 80px;
      margin-bottom: var(--spacing-sm);
- }
- .comment-form .btn {
-     margin-top: var(--spacing-sm);
- }
+}
+
+.container-comment-section {
+  padding-left: var(--spacing-lg);
+  padding-right: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+}
+.container-comment-section summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+}
  
  /* ===================================================================
   * PAGINERING & KNOPPEN
   * =================================================================== */
- .pagination-controls {
+.pagination-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-md) var(--spacing-lg);
   background-color: var(--theme-bg-alt);
   border-top: 1px solid var(--theme-border-soft);
- }
+}
  
- .btn {
+.btn {
   font-family: var(--font-sans);
   font-weight: 600;
   font-size: 0.9rem;
@@ -439,59 +413,64 @@
   cursor: pointer;
   transition: all var(--transition-fast);
   text-decoration: none; 
-  display: inline-block; 
- }
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
  
- .btn-primary {
+.btn-primary {
   background-color: var(--theme-primary);
   color: var(--theme-bg-panel);
   border-color: var(--theme-primary);
- }
- .btn-primary:hover {
+}
+.btn-primary:hover {
   background-color: var(--theme-primary-dark);
   border-color: var(--theme-primary-dark);
- }
+  color: var(--theme-bg-panel);
+}
  
- .btn-secondary {
+.btn-secondary {
   background-color: var(--theme-bg-panel);
   color: var(--theme-text-primary);
   border-color: var(--theme-border-strong);
- }
- .btn-secondary:hover {
+}
+.btn-secondary:hover {
   background-color: var(--theme-bg-alt);
   border-color: #adb5bd; 
- }
+}
  
- .btn:disabled, .btn.disabled {
+.btn:disabled, .btn.disabled {
   opacity: 0.65;
   cursor: not-allowed;
- }
+}
  
- /* Flash messages styling (passend bij het thema) */
- .alert {
+ /* ===================================================================
+  * FLASH MESSAGES
+  * =================================================================== */
+.alert {
   padding: var(--spacing-md);
   margin-bottom: var(--spacing-lg);
   border: 1px solid transparent;
   border-radius: var(--border-radius-md);
   font-size: 0.9rem;
- }
- .alert-success {
+}
+.alert-success {
   color: #0f5132;
   background-color: #d1e7dd;
   border-color: #badbcc;
- }
- .alert-danger {
+}
+.alert-danger {
   color: #842029;
   background-color: #f8d7da;
   border-color: #f5c2c7;
- }
- .alert-warning {
+}
+.alert-warning {
   color: #664d03;
   background-color: #fff3cd;
   border-color: #ffecb5;
- }
- .alert-info {
+}
+.alert-info {
   color: #055160;
   background-color: #cff4fc;
   border-color: #b6effb;
- }
+}

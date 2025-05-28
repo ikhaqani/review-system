@@ -1,10 +1,14 @@
 # app/main/routes.py
 
-from flask import render_template, flash, redirect, url_for, Blueprint, request, abort, current_app
+from flask import render_template, flash, redirect, url_for, Blueprint, request, abort, current_app, Response
 from app import db
 from app.models import Comment
 import json
 import os
+from datetime import datetime
+import pytz
+import io
+import csv
 
 bp = Blueprint('main', __name__)
 
@@ -79,7 +83,7 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
             choice_options = []
             for child_node_json in node_children:
                 option_name = _get_node_name(child_node_json, lang_codes)
-                option_archetype_node_id = child_node_json.get('id') or child_node_json.get('nodeId') 
+                option_archetype_node_id = child_node_json.get('nodeId') or child_node_json.get('id')
                 option_aql_path = child_node_json.get('aqlPath', '')
                 option_value_data = _create_value_structure(child_node_json, lang_codes) 
 
@@ -146,7 +150,6 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
 def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_path="", current_node_number_str="", current_node_level=-1):
     if not isinstance(current_node_json, dict): return None
     
-    node_id_val = current_node_json.get('id')
     node_rm_type = current_node_json.get('rmType', '').upper()
     aql_path = current_node_json.get('aqlPath', '')
 
@@ -158,7 +161,11 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
         return None
 
     node_name = _get_node_name(current_node_json, lang_codes)
-    display_id = node_id_val if node_id_val else current_node_json.get('nodeId', 'uid_' + str(hash(aql_path))[-6:])
+    
+    node_id_val = current_node_json.get('nodeId') 
+    id_val = current_node_json.get('id')         
+    display_id = node_id_val or id_val or 'uid_' + str(hash(aql_path))[-6:]
+    
     min_occ = current_node_json.get('min')
     max_occ = current_node_json.get('max')
 
@@ -176,7 +183,6 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
         elif not any(child.get('rmType','').upper() in (ORIGINAL_SECTION_TYPES | NUMBERABLE_CONTAINER_TYPES | {'EVENT_CONTEXT'}) \
                      for child in children_nodes if isinstance(child,dict)):
             is_leaf_element = True
-
 
     if is_leaf_element and aql_path: 
         leaf_data = {
@@ -235,7 +241,7 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
                            processed_child_node['section_number'] = child_full_number_str
                         processed_children.append(processed_child_node)
         
-        if aql_path: # Essentieel voor een functionele container
+        if aql_path:
             node_data = {
                 "_type": node_rm_type, 
                 "name": {"value": node_name}, 
@@ -251,7 +257,7 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
             if current_node_number_str: 
                 node_data['section_number'] = current_node_number_str
             return node_data
-        else: # Geen aqlPath, kan niet functioneren als een unieke container, geef alleen kinderen terug als die er zijn.
+        else:
             if processed_children: return processed_children
 
     if isinstance(current_node_json.get('children'), list):
@@ -270,10 +276,6 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
         if fallback_elements: return fallback_elements 
         
     return None 
-
-# ====================================================================
-# ========= START VAN DE AANGEPASTE CODE =========
-# ====================================================================
 
 def transform_web_template_to_questionnaire(web_template_data):
     if not web_template_data or not isinstance(web_template_data.get('tree'), dict):
@@ -301,36 +303,29 @@ def transform_web_template_to_questionnaire(web_template_data):
         
         top_level_rm_type = top_level_json_node.get('rmType', '').upper()
         
-        # CONTROLEER OF HET EEN HOOFDSTUK-TYPE IS (SECTION of speciale CONTEXT)
         is_main_section_type = top_level_rm_type in ORIGINAL_SECTION_TYPES or \
                                (top_level_rm_type == 'EVENT_CONTEXT' and top_level_json_node.get('id') == 'context')
 
-        # WIJZIGING 1: De voorwaarde is versoepeld. Een aqlPath is niet meer vereist om een hoofdstuk te maken.
         if is_main_section_type:
             top_level_section_counter += 1
             current_section_number_str = str(top_level_section_counter)
             current_level_int = 0
 
-            # WIJZIGING 2: Gebruik altijd de _get_node_name functie voor een consistente en robuuste naamgeving.
             hoofdstuk_naam = _get_node_name(top_level_json_node, pref_langs)
-            # Speciale behandeling voor een generieke 'Context' naam
             if top_level_rm_type == 'EVENT_CONTEXT' and hoofdstuk_naam in ["Event Context", "Naamloos Veld", "context"]:
                  hoofdstuk_naam = "Context"
 
-            # WIJZIGING 3: Garandeer dat er een aqlPath is, maak een fallback als deze ontbreekt.
             top_level_aql_path = top_level_json_node.get('aqlPath')
             if not top_level_aql_path:
-                node_id = top_level_json_node.get('id', f'generated_section_id_{idx}')
-                # Maak een plausibel, uniek pad zodat de sectie een ID heeft.
+                node_id = top_level_json_node.get('nodeId') or top_level_json_node.get('id', f'generated_section_id_{idx}')
                 top_level_aql_path = f"/content[openEHR-EHR-SECTION.adhoc.v1 and name/value='{node_id}']"
                 print(f"WARN: Hoofdsectie '{hoofdstuk_naam}' (index {idx}) heeft geen aqlPath. Een fallback is gegenereerd: {top_level_aql_path}")
 
 
-            # Maak de hoofdsectie-node expliciet aan
             main_section_node = {
                 "_type": top_level_rm_type,
                 "name": {"value": hoofdstuk_naam},
-                "archetype_node_id": top_level_json_node.get('id') or top_level_json_node.get('nodeId'),
+                "archetype_node_id": top_level_json_node.get('nodeId') or top_level_json_node.get('id'),
                 "aqlPath": top_level_aql_path,
                 "min": top_level_json_node.get('min'),
                 "max": top_level_json_node.get('max'),
@@ -340,7 +335,6 @@ def transform_web_template_to_questionnaire(web_template_data):
                 "section_number": current_section_number_str
             }
 
-            # Verwerk de kinderen van deze hoofdsectie
             processed_children_list = []
             if isinstance(top_level_json_node.get('children'), list):
                 child_numbering_counter = 0
@@ -349,7 +343,6 @@ def transform_web_template_to_questionnaire(web_template_data):
                     
                     child_rm_type = child_json.get('rmType', '').upper()
                     child_full_number_str = ""
-                    # Sub-nummering alleen voor container-achtige kinderen
                     if current_section_number_str and child_rm_type in (ORIGINAL_SECTION_TYPES | NUMBERABLE_CONTAINER_TYPES | {'EVENT_CONTEXT'}):
                         child_numbering_counter += 1
                         child_full_number_str = f"{current_section_number_str}.{child_numbering_counter}"
@@ -359,7 +352,7 @@ def transform_web_template_to_questionnaire(web_template_data):
                         pref_langs,
                         parent_aql_path=top_level_aql_path,
                         current_node_number_str=child_full_number_str,
-                        current_node_level=current_level_int + 1 # Kinderen zijn level 1
+                        current_node_level=current_level_int + 1
                     )
                     if processed_child:
                         if isinstance(processed_child, list):
@@ -370,13 +363,13 @@ def transform_web_template_to_questionnaire(web_template_data):
             main_section_node['children'] = processed_children_list
             content_list_for_flask.append(main_section_node)
 
-        else: # Dit is de fallback voor top-level items die geen hoofdstuk zijn (bijv. een losse EVALUATION)
+        else:
             initial_level_for_other_types = 0 if top_level_rm_type in NUMBERABLE_CONTAINER_TYPES else -1
             processed_node = _process_node_for_ui(
                 top_level_json_node, 
                 pref_langs, 
                 parent_aql_path=root_tree.get('aqlPath',''), 
-                current_node_number_str="", # Geen hoofdsectienummer
+                current_node_number_str="",
                 current_node_level=initial_level_for_other_types 
             )
             if processed_node:
@@ -394,10 +387,6 @@ def transform_web_template_to_questionnaire(web_template_data):
         "archetype_node_id": composition_archetype_id,
         "content": content_list_for_flask
     }
-
-# ====================================================================
-# ========= EINDE VAN DE AANGEPASTE CODE =========
-# ====================================================================
 
 def get_cached_questionnaire_structure():
     global _questionnaire_cache
@@ -514,10 +503,15 @@ def handle_comment_post():
     else:
         try:
             section_index = int(section_index_str)
+
+            amsterdam_tz = pytz.timezone('Europe/Amsterdam')
+            timestamp = datetime.now(amsterdam_tz)
+
             comment = Comment(
                 comment_text=comment_text, 
                 author_name=author_name,
-                element_path=element_path
+                element_path=element_path,
+                created_at=timestamp
             )
             db.session.add(comment)
             db.session.commit()
@@ -536,3 +530,96 @@ def handle_comment_post():
         except ValueError:
             pass 
     return redirect(url_for('main.form_page', section_index=fallback_section_index))
+
+
+# ====================================================================
+# ========= WIJZIGING: Helper functie voor CSV Export aangepast =========
+# ====================================================================
+def _flatten_leaf_nodes_for_export(node, leaf_nodes_dict):
+    """
+    Doorloopt recursief de vragenlijst structuur en bouwt een platte dictionary
+    met aqlPath als key en de node-data (naam en nodeId) als value,
+    ALLEEN voor leaf nodes (vragen).
+    """
+    if isinstance(node, dict):
+        # Sla de node op als deze een leaf is en een aqlPath heeft
+        if node.get('is_leaf') and node.get('aqlPath'):
+            leaf_nodes_dict[node['aqlPath']] = {
+                'name': node.get('name', {}).get('value', 'Naamloos'),
+                'nodeId': node.get('archetype_node_id', 'Geen ID') 
+            }
+        
+        # Verwerk de kinderen van de node, ongeacht of de huidige node een leaf is
+        # Dit is nodig omdat een container bladeren kan bevatten
+        if 'children' in node and isinstance(node.get('children'), list):
+            for child in node.get('children', []):
+                _flatten_leaf_nodes_for_export(child, leaf_nodes_dict)
+        
+        # Verwerk ook 'options' binnen een 'CHOICE' type, aangezien dit ook leaves kunnen zijn
+        if node.get('value') and isinstance(node['value'], dict) and node['value'].get('_type') == 'CHOICE':
+            for option_node in node['value'].get('options', []):
+                if isinstance(option_node, dict) and option_node.get('is_leaf') and option_node.get('aqlPath'):
+                     leaf_nodes_dict[option_node['aqlPath']] = {
+                        'name': option_node.get('name', {}).get('value', 'Naamloos Optie'),
+                        'nodeId': option_node.get('archetype_node_id', 'Geen Optie ID')
+                    }
+
+
+    # Als de input een lijst is, verwerk elk item
+    elif isinstance(node, list):
+        for item in node:
+            _flatten_leaf_nodes_for_export(item, leaf_nodes_dict)
+
+@bp.route('/export/comments')
+def export_comments_csv():
+    """
+    Genereert en serveert een CSV-bestand van alle commentaren voor alle vragen.
+    """
+    try:
+        # 1. Haal de volledige vragenlijststructuur op
+        questionnaire = get_cached_questionnaire_structure()
+        all_questions_map = {}
+        # Gebruik de nieuwe helper functie om ALLEEN leaf nodes (vragen) te verzamelen
+        _flatten_leaf_nodes_for_export(questionnaire.get('content', []), all_questions_map)
+
+        # 2. Haal alle commentaren op en groepeer ze per element_path
+        all_comments_db = Comment.query.all()
+        comments_for_csv = {}
+        for comment_obj in all_comments_db:
+            if comment_obj.element_path not in comments_for_csv:
+                comments_for_csv[comment_obj.element_path] = []
+            # Verwijder newlines uit commentaartekst voor CSV-compatibiliteit
+            cleaned_comment_text = comment_obj.comment_text.replace('\r', '').replace('\n', ' ')
+            comments_for_csv[comment_obj.element_path].append(cleaned_comment_text)
+
+        # 3. Bouw het CSV-bestand in het geheugen
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Schrijf de header
+        writer.writerow(['Vraag', 'Node ID', 'Commentaar'])
+
+        # ===== WIJZIGING: Itereer over alle vragen, niet alleen die met commentaar =====
+        for path, question_info in all_questions_map.items():
+            vraag = question_info['name']
+            node_id = question_info['nodeId']
+            
+            # Haal commentaren op voor dit pad, of een lege lijst als er geen zijn
+            current_comments_list = comments_for_csv.get(path, [])
+            samengevoegd_commentaar = ", ".join(current_comments_list) # Gebruik komma als scheidingsteken
+            
+            writer.writerow([vraag, node_id, samengevoegd_commentaar])
+        
+        output.seek(0)
+
+        # 4. Creëer en retourneer de Flask Response
+        return Response(
+            output,
+            mimetype="text/csv",
+            headers={"Content-Disposition": "attachment;filename=commentaren_export.csv"}
+        )
+
+    except Exception as e:
+        current_app.logger.error(f"Fout bij het genereren van CSV-export: {e}", exc_info=True)
+        flash(f'Fout bij het genereren van CSV-export: {e}', 'danger')
+        return redirect(request.referrer or url_for('main.index'))
