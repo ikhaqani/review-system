@@ -1,25 +1,21 @@
-# app/main/routes.py
-
 from flask import render_template, flash, redirect, url_for, Blueprint, request, abort, current_app, Response
 from app import db
 from app.models import Comment
 import json
 import os
 from datetime import datetime
-import pytz
+import pytz # Zorg ervoor dat pytz geïnstalleerd is (pip install pytz)
 import io
 import csv
+import re # Toegevoegd voor het parsen van DV_INTERVAL inner types
 
 bp = Blueprint('main', __name__)
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 TEMPLATE_FILEPATH = os.path.join(BASE_DIR, 'templates_openehr', 'ACP-DUTCH.json')
 
-# Definieer de rmTypes per niveau voor de nummering
 ORIGINAL_SECTION_TYPES = {"SECTION"}
 NUMBERABLE_CONTAINER_TYPES = {"EVALUATION", "ADMIN_ENTRY", "OBSERVATION", "INSTRUCTION", "ACTION", "GENERIC_ENTRY", "CLUSTER"}
-# EVENT_CONTEXT wordt speciaal behandeld in transform_web_template_to_questionnaire
-
 _questionnaire_cache = None
 
 def load_web_template_json(filepath):
@@ -43,10 +39,8 @@ def load_web_template_json(filepath):
 
 def _get_node_name(node_json, lang_codes=['nl', 'en']):
     if not isinstance(node_json, dict): return "Ongeldige Node Structuur"
-    
     if isinstance(node_json.get('localizedName'), str) and node_json['localizedName'].strip():
         return node_json['localizedName']
-    
     localized_names_dict = node_json.get('localizedNames', {})
     if isinstance(localized_names_dict, dict):
         for lang_code in lang_codes:
@@ -54,17 +48,13 @@ def _get_node_name(node_json, lang_codes=['nl', 'en']):
                isinstance(localized_names_dict[lang_code], str) and \
                localized_names_dict[lang_code].strip():
                 return localized_names_dict[lang_code]
-
     if isinstance(node_json.get('name'), str) and node_json['name'].strip():
         return node_json['name']
-        
     if isinstance(node_json.get('label'), str) and node_json['label'].strip():
         return node_json['label']
-
     node_id = node_json.get('id')
     if isinstance(node_id, str) and node_id.strip():
         return node_id 
-
     return "Naamloos Veld"
 
 def _create_value_structure(node_json, lang_codes=['nl', 'en']):
@@ -86,7 +76,6 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
                 option_archetype_node_id = child_node_json.get('nodeId') or child_node_json.get('id')
                 option_aql_path = child_node_json.get('aqlPath', '')
                 option_value_data = _create_value_structure(child_node_json, lang_codes) 
-
                 choice_options.append({
                     "_type": child_node_json.get('rmType'), 
                     "name": {"value": option_name},
@@ -97,12 +86,7 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
                     "value": option_value_data, 
                     "is_leaf": True 
                 })
-            return {
-                "_type": "CHOICE", 
-                "original_rm_type": node_rm_type, 
-                "options": choice_options,
-                "value": None 
-            }
+            return {"_type": "CHOICE", "original_rm_type": node_rm_type, "options": choice_options, "value": None}
         effective_data_type = "DV_TEXT" 
 
     value_structure = {}
@@ -115,19 +99,20 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
             if isinstance(option_item, dict):
                 label = _get_node_name(option_item, lang_codes) 
                 options.append({"label": label, "value": option_item.get('value')})
-        value_structure = {
-            "_type": "DV_CODED_TEXT", "value": "", 
-            "defining_code": {"code_string": "", "terminology_id": {"value": input_def.get('terminology', '')}},
-            "options": options
-        }
+        value_structure = {"_type": "DV_CODED_TEXT", "value": "", "defining_code": {"code_string": "", "terminology_id": {"value": input_def.get('terminology', '')}}, "options": options}
     elif effective_data_type in ['BOOLEAN', 'DV_BOOLEAN']:
         value_structure = {"_type": "DV_BOOLEAN", "value": None} 
     elif effective_data_type in ['INTEGER', 'COUNT', 'DV_COUNT']:
         value_structure = {"_type": "DV_COUNT", "magnitude": None}
     elif effective_data_type in ['DECIMAL', 'REAL', 'DOUBLE', 'DV_QUANTITY', 'QUANTITY']:
         units = input_def.get('units', '')
-        validation_range = input_def.get('validation', {}).get('range', {})
-        if not units and isinstance(validation_range.get('units'), str) : units = validation_range['units']
+        validation = input_def.get('validation', {})
+        if not units and validation and isinstance(validation.get('range'), dict):
+            range_info = validation['range']
+            if isinstance(range_info, list) and range_info:
+                units = range_info[0].get('units', '')
+            elif isinstance(range_info, dict):
+                units = range_info.get('units', '')
         value_structure = {"_type": "DV_QUANTITY", "magnitude": None, "units": units}
     elif effective_data_type in ['DATETIME', 'DV_DATE_TIME']:
         value_structure = {"_type": "DV_DATE_TIME", "value": None} 
@@ -139,8 +124,50 @@ def _create_value_structure(node_json, lang_codes=['nl', 'en']):
         value_structure = {"_type": "DV_IDENTIFIER", "id_value": "", "type": "", "issuer": "", "assigner": ""}
     elif effective_data_type in ['URI', 'DV_URI']:
         value_structure = {"_type": "DV_URI", "value": ""}
-    elif effective_data_type.startswith('DV_INTERVAL') or effective_data_type in ['DV_DURATION', 'DV_PROPORTION']:
-        value_structure = {"_type": effective_data_type, "value": f"[{effective_data_type.replace('DV_', '')} placeholder]"}
+    
+    elif effective_data_type.startswith("DV_INTERVAL"):
+        inner_type_str = "DV_TEXT" 
+        match = re.search(r"DV_INTERVAL<([A-Z_]+)>", effective_data_type)
+        if match:
+            inner_type_str = match.group(1)
+        
+        lower_input_def, upper_input_def = {}, {}
+        if isinstance(input_def_list, list):
+            for sub_input in input_def_list:
+                if sub_input.get("suffix") == "lower": lower_input_def = sub_input
+                elif sub_input.get("suffix") == "upper": upper_input_def = sub_input
+        
+        if not lower_input_def and input_def: lower_input_def = input_def
+        if not upper_input_def and input_def: upper_input_def = input_def
+
+        lower_inner_node = {"rmType": inner_type_str, "inputs": [lower_input_def] if lower_input_def else []}
+        upper_inner_node = {"rmType": inner_type_str, "inputs": [upper_input_def] if upper_input_def else []}
+        
+        value_structure = {
+            "_type": "DV_INTERVAL",
+            "lower": _create_value_structure(lower_inner_node, lang_codes),
+            "upper": _create_value_structure(upper_inner_node, lang_codes),
+            "lower_included": input_def.get("lower_included", True), 
+            "upper_included": input_def.get("upper_included", True)  
+        }
+    elif effective_data_type == 'DV_DURATION':
+        # WIJZIGING: "years" verwijderd conform laatste verzoek.
+        # De template voegt een extra tekstveld "Doel/Beschrijving" toe, los van deze datastructuur.
+        value_structure = {
+            "_type": "DV_DURATION", 
+            "months": None, 
+            "weeks": None, 
+            "days": None, 
+            "hours": None, 
+            "minutes": None, 
+            "seconds": None
+        }
+    elif effective_data_type == 'DV_PROPORTION':
+        prop_type = 0 
+        if input_def.get("list") and isinstance(input_def["list"], list) and len(input_def["list"]) > 0:
+            try: prop_type = int(input_def["list"][0].get("value", 0))
+            except ValueError: pass
+        value_structure = {"_type": "DV_PROPORTION", "numerator": None, "denominator": None, "type": prop_type}
     else:
         print(f"WARN: Onbehandeld effective_data_type '{effective_data_type}' voor node '{node_json.get('id', 'unknown id')}' (rmType: {node_rm_type}). Gebruik default structuur.")
         return default_value_structure
@@ -154,11 +181,27 @@ def _process_node_for_ui(current_node_json, lang_codes=['nl', 'en'], parent_aql_
     aql_path = current_node_json.get('aqlPath', '')
 
     relative_aql_path = aql_path.replace(parent_aql_path, '', 1).lstrip('/') if parent_aql_path else aql_path.lstrip('/')
+    
+    # ====================================================================
+    # ========= WIJZIGING: Filter voor context-attributen aangepast =========
+    # ====================================================================
+    # 'setting' en 'start_time' worden nu NIET meer standaard overgeslagen.
+    # Alleen strikt technische metadata wordt nog overgeslagen.
+    structural_metadata_names_to_skip = [
+        'language', 'encoding', 'subject', 'category', 
+        'territory', 'composer', 'health_care_facility', 'location'
+        # 'setting', 'start_time', en 'other_context' (als het een cluster is) worden nu verwerkt
+    ]
+    # De check of het een direct kind is van /context (relative_aql_path.count('/') == 0) blijft belangrijk
+    # en of het item `inContext: true` heeft.
     is_structural_metadata = current_node_json.get('inContext') is True and \
-                             (relative_aql_path.count('/') == 0 and \
-                              relative_aql_path in ['language', 'encoding', 'subject', 'category', 'territory', 'composer', 'setting', 'start_time', 'health_care_facility', 'location', 'other_context'])
+                             relative_aql_path.count('/') == 0 and \
+                             relative_aql_path in structural_metadata_names_to_skip
+    
     if is_structural_metadata:
+        print(f"INFO: Overslaan van structurele metadata node: {aql_path} (relative: {relative_aql_path})")
         return None
+    # ====================================================================
 
     node_name = _get_node_name(current_node_json, lang_codes)
     
@@ -532,40 +575,74 @@ def handle_comment_post():
     return redirect(url_for('main.form_page', section_index=fallback_section_index))
 
 
-# ====================================================================
-# ========= WIJZIGING: Helper functie voor CSV Export aangepast =========
-# ====================================================================
 def _flatten_leaf_nodes_for_export(node, leaf_nodes_dict):
     """
     Doorloopt recursief de vragenlijst structuur en bouwt een platte dictionary
-    met aqlPath als key en de node-data (naam en nodeId) als value,
-    ALLEEN voor leaf nodes (vragen).
+    met een unieke key voor elke CSV-rij, en de node-data (naam, nodeId, comment_path) als value.
+    Speciale aandacht voor CHOICE types om elke optie als een aparte "vraag" te behandelen in de CSV.
     """
     if isinstance(node, dict):
-        # Sla de node op als deze een leaf is en een aqlPath heeft
         if node.get('is_leaf') and node.get('aqlPath'):
-            leaf_nodes_dict[node['aqlPath']] = {
-                'name': node.get('name', {}).get('value', 'Naamloos'),
-                'nodeId': node.get('archetype_node_id', 'Geen ID') 
-            }
+            parent_aql_path = node['aqlPath']
+            parent_name = node.get('name', {}).get('value', 'Naamloos')
+            parent_node_id = node.get('archetype_node_id', 'Geen ID') # Dit is de AT-code
+
+            if node.get('value') and isinstance(node['value'], dict) and node['value'].get('_type') == 'CHOICE':
+                options = node['value'].get('options', [])
+                if not options: # CHOICE zonder opties, behandel als simpele leaf
+                     leaf_nodes_dict[parent_aql_path] = {
+                        'csv_name': parent_name, 
+                        'csv_node_id': parent_node_id, 
+                        'comment_path': parent_aql_path
+                    }
+                else:
+                    for i, option_data in enumerate(options):
+                        # option_data is een dict zoals:
+                        # {"_type": "DV_TEXT", "name": {"value": "Tekst"}, "archetype_node_id": "text_value", "value": {...}}
+                        if isinstance(option_data, dict):
+                            # archetype_node_id van de optie is de interne id zoals 'text_value', 'uri_value'
+                            option_internal_id = option_data.get('archetype_node_id', '') 
+                            
+                            csv_display_name_for_option = parent_name
+                            
+                            # Logica om de naam te kwalificeren gebaseerd op de user-voorbeelden:
+                            # De "primaire" of eerste optie krijgt geen suffix.
+                            # Volgende opties krijgen een suffix met hun interne id.
+                            if i == 0:
+                                # Eerste optie, gebruik de naam van het ouderelement
+                                csv_display_name_for_option = parent_name
+                            else:
+                                # Volgende opties, voeg de interne id van de optie toe als suffix
+                                if option_internal_id and option_internal_id.lower() not in ['value', '']:
+                                    csv_display_name_for_option = f"{parent_name} ({option_internal_id})"
+                                else:
+                                    # Fallback als de interne id niet informatief is
+                                    option_type_name = option_data.get('value', {}).get('_type', f'Optie{i+1}')
+                                    csv_display_name_for_option = f"{parent_name} (als {option_type_name})"
+                            
+                            # Creëer een unieke key voor de map, zodat elke keuze-optie een eigen rij krijgt in de CSV
+                            # Deze key wordt alleen gebruikt om de map uniek te vullen.
+                            unique_map_key = f"{parent_aql_path}#CHOICE_OPT_{i}_{option_internal_id}"
+                            
+                            leaf_nodes_dict[unique_map_key] = {
+                                'csv_name': csv_display_name_for_option,
+                                'csv_node_id': parent_node_id, # Gebruik altijd de AT-code van het ouderelement
+                                'comment_path': parent_aql_path # Commentaren horen bij het aqlPath van het ouderelement
+                            }
+            else:
+                # Standaard leaf node (geen CHOICE)
+                leaf_nodes_dict[parent_aql_path] = {
+                    'csv_name': parent_name,
+                    'csv_node_id': parent_node_id,
+                    'comment_path': parent_aql_path
+                }
         
-        # Verwerk de kinderen van de node, ongeacht of de huidige node een leaf is
-        # Dit is nodig omdat een container bladeren kan bevatten
+        # Recursief doorgaan voor kinderen, zelfs als de huidige node een leaf is (kan kinderen hebben zoals DV_INTERVAL)
+        # De 'is_leaf' check hierboven bepaalt of de *huidige* node als vraag wordt beschouwd.
         if 'children' in node and isinstance(node.get('children'), list):
             for child in node.get('children', []):
                 _flatten_leaf_nodes_for_export(child, leaf_nodes_dict)
-        
-        # Verwerk ook 'options' binnen een 'CHOICE' type, aangezien dit ook leaves kunnen zijn
-        if node.get('value') and isinstance(node['value'], dict) and node['value'].get('_type') == 'CHOICE':
-            for option_node in node['value'].get('options', []):
-                if isinstance(option_node, dict) and option_node.get('is_leaf') and option_node.get('aqlPath'):
-                     leaf_nodes_dict[option_node['aqlPath']] = {
-                        'name': option_node.get('name', {}).get('value', 'Naamloos Optie'),
-                        'nodeId': option_node.get('archetype_node_id', 'Geen Optie ID')
-                    }
 
-
-    # Als de input een lijst is, verwerk elk item
     elif isinstance(node, list):
         for item in node:
             _flatten_leaf_nodes_for_export(item, leaf_nodes_dict)
@@ -576,43 +653,36 @@ def export_comments_csv():
     Genereert en serveert een CSV-bestand van alle commentaren voor alle vragen.
     """
     try:
-        # 1. Haal de volledige vragenlijststructuur op
         questionnaire = get_cached_questionnaire_structure()
-        all_questions_map = {}
-        # Gebruik de nieuwe helper functie om ALLEEN leaf nodes (vragen) te verzamelen
+        all_questions_map = {} # Wordt gevuld door _flatten_leaf_nodes_for_export
         _flatten_leaf_nodes_for_export(questionnaire.get('content', []), all_questions_map)
 
-        # 2. Haal alle commentaren op en groepeer ze per element_path
         all_comments_db = Comment.query.all()
-        comments_for_csv = {}
+        comments_for_csv = {} # Key: comment_path, Value: list of comment strings
         for comment_obj in all_comments_db:
             if comment_obj.element_path not in comments_for_csv:
                 comments_for_csv[comment_obj.element_path] = []
-            # Verwijder newlines uit commentaartekst voor CSV-compatibiliteit
             cleaned_comment_text = comment_obj.comment_text.replace('\r', '').replace('\n', ' ')
             comments_for_csv[comment_obj.element_path].append(cleaned_comment_text)
 
-        # 3. Bouw het CSV-bestand in het geheugen
         output = io.StringIO()
         writer = csv.writer(output)
 
-        # Schrijf de header
         writer.writerow(['Vraag', 'Node ID', 'Commentaar'])
 
-        # ===== WIJZIGING: Itereer over alle vragen, niet alleen die met commentaar =====
-        for path, question_info in all_questions_map.items():
-            vraag = question_info['name']
-            node_id = question_info['nodeId']
+        # Itereer over de verzamelde vragen/keuze-opties
+        for unique_key, question_data in all_questions_map.items():
+            vraag_display_name = question_data['csv_name']
+            node_id_at_code = question_data['csv_node_id']
+            comment_lookup_path = question_data['comment_path'] # Gebruik dit pad voor commentaren
             
-            # Haal commentaren op voor dit pad, of een lege lijst als er geen zijn
-            current_comments_list = comments_for_csv.get(path, [])
-            samengevoegd_commentaar = ", ".join(current_comments_list) # Gebruik komma als scheidingsteken
+            current_comments_list = comments_for_csv.get(comment_lookup_path, [])
+            samengevoegd_commentaar = ", ".join(current_comments_list)
             
-            writer.writerow([vraag, node_id, samengevoegd_commentaar])
+            writer.writerow([vraag_display_name, node_id_at_code, samengevoegd_commentaar])
         
         output.seek(0)
 
-        # 4. Creëer en retourneer de Flask Response
         return Response(
             output,
             mimetype="text/csv",

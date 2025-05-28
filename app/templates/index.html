@@ -4,13 +4,68 @@
   {{ super() }}
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-  {# WIJZIGING: Extra CSS voor de zichtbare nodeId #}
   <style>
     .question-node-id {
       font-family: var(--font-mono, monospace);
       font-size: 0.75rem; /* 12px */
       color: var(--theme-text-secondary, #4b5563);
       margin-bottom: var(--spacing-xs, 4px);
+    }
+    .identifier-fields, .interval-fields, .duration-fields-wrapper, .proportion-fields {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm, 8px);
+      margin-top: var(--spacing-xs);
+    }
+    .identifier-field-group, .interval-bound-group, .duration-field-group, .proportion-field-group, .duration-target-field-group {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-xs, 4px);
+    }
+    .form-label-sm { /* Algemene kleine label stijl */
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--theme-text-secondary);
+        margin-bottom: 2px; /* Kleine marge onder label */
+    }
+    .duration-components-row { 
+        display: flex;
+        flex-wrap: wrap; 
+        gap: var(--spacing-sm);
+        align-items: flex-end; 
+    }
+    .duration-component-field { 
+        display: flex;
+        flex-direction: column;
+        min-width: 70px; 
+        flex-basis: calc(16.66% - var(--spacing-sm)); /* Voor 6 items per rij */
+        flex-grow: 1;
+    }
+     @media (max-width: 768px) { 
+        .duration-component-field {
+            flex-basis: calc(33.33% - var(--spacing-sm)); /* 3 per rij op kleinere schermen */
+        }
+    }
+    .interval-bound-group .d-flex { 
+        gap: var(--spacing-sm);
+    }
+    .choice-info {
+        font-size: 0.85rem;
+        color: var(--theme-text-secondary);
+        margin-bottom: var(--spacing-sm);
+        font-weight: 500;
+        padding-bottom: var(--spacing-xs);
+        border-bottom: 1px dashed var(--theme-border-soft);
+    }
+    .choice-option-block {
+      padding: var(--spacing-sm);
+      margin-bottom: var(--spacing-md);
+      border: 1px solid var(--theme-border-soft);
+      border-radius: var(--border-radius-sm);
+      background-color: var(--theme-bg-body);
+    }
+    .choice-option-block:last-child {
+      margin-bottom: 0;
     }
   </style>
 {% endblock %}
@@ -24,6 +79,144 @@
 </div>
 {% endmacro %}
 
+{# ===================================================================================== #}
+{# MACRO: Render input veld(en) voor een specifiek DV (Data Value) type                #}
+{# ===================================================================================== #}
+{% macro render_input_for_dv_type(dv_value_obj, id_prefix) %}
+    {% if dv_value_obj._type=='DV_TEXT' or dv_value_obj._type=='DV_URI' %}
+      <input type="text" class="form-control form-control-sm" 
+             placeholder="{{ '' if dv_value_obj._type=='DV_URI' else '' }}" 
+             value="{{ dv_value_obj.value or '' }}">
+    {% elif dv_value_obj._type=='DV_BOOLEAN' %}
+      <div class="d-flex gap-3">
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="bool_{{ id_prefix }}" id="yes-{{ id_prefix }}" value="true" {{ 'checked' if dv_value_obj.value }}>
+          <label class="form-check-label" for="yes-{{ id_prefix }}">Ja</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="bool_{{ id_prefix }}" id="no-{{ id_prefix }}" value="false" {{ 'checked' if dv_value_obj.value is sameas(false) }}>
+          <label class="form-check-label" for="no-{{ id_prefix }}">Nee</label>
+        </div>
+      </div>
+    {% elif dv_value_obj._type=='DV_CODED_TEXT' %}
+      <select class="form-select form-select-sm professional-select" placeholder="">
+          <option value="">-- Selecteer {{ dv_value_obj.options|length if dv_value_obj.options else '0' }} optie(s) --</option>
+          {% for option_item in dv_value_obj.options %}
+              <option value="{{ option_item.value }}" {% if option_item.value == dv_value_obj.value %}selected{% endif %}>{{ option_item.label }}</option>
+          {% endfor %}
+      </select>
+    {% elif dv_value_obj._type == 'DV_DATE' %}
+        <input type="date" class="form-control form-control-sm" value="{{ dv_value_obj.value if dv_value_obj.value is not none else '' }}">
+    {% elif dv_value_obj._type == 'DV_DATE_TIME' %}
+        <input type="datetime-local" class="form-control form-control-sm" value="{{ dv_value_obj.value if dv_value_obj.value is not none else '' }}">
+    {% elif dv_value_obj._type == 'DV_COUNT' %}
+        <input type="number" class="form-control form-control-sm" min="0" step="1" 
+               value="{{ dv_value_obj.magnitude if dv_value_obj.magnitude is not none else '0' }}" 
+               placeholder="Aantal...">
+    {% elif dv_value_obj._type == 'DV_QUANTITY' %}
+        <div class="d-flex gap-2">
+            <input type="number" step="any" class="form-control form-control-sm" 
+                   value="{{ dv_value_obj.magnitude if dv_value_obj.magnitude is not none else '' }}" placeholder="Waarde">
+            <input type="text" class="form-control form-control-sm" style="max-width: 100px;" 
+                   value="{{ dv_value_obj.units or '' }}" placeholder="Eenheid">
+        </div>
+    {% elif dv_value_obj._type == 'DV_IDENTIFIER' %}
+        <div class="identifier-fields">
+            <div class="identifier-field-group">
+                <label for="id_value_{{ id_prefix }}" class="form-label form-label-sm">ID Waarde:</label>
+                <input type="text" id="id_value_{{ id_prefix }}" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.id_value or '' }}" placeholder="ID Waarde...">
+            </div>
+            <div class="identifier-field-group">
+                <label for="type_{{ id_prefix }}" class="form-label form-label-sm">Type:</label>
+                <input type="text" id="type_{{ id_prefix }}" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.type or '' }}" placeholder="Type...">
+            </div>
+            <div class="identifier-field-group">
+                <label for="issuer_{{ id_prefix }}" class="form-label form-label-sm">Issuer:</label>
+                <input type="text" id="issuer_{{ id_prefix }}" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.issuer or '' }}" placeholder="Issuer...">
+            </div>
+            <div class="identifier-field-group">
+                <label for="assigner_{{ id_prefix }}" class="form-label form-label-sm">Assigner:</label>
+                <input type="text" id="assigner_{{ id_prefix }}" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.assigner or '' }}" placeholder="Assigner...">
+            </div>
+        </div>
+    {% elif dv_value_obj._type == 'DV_INTERVAL' %}
+        <div class="interval-fields">
+            <div class="interval-bound-group">
+                <label class="form-label form-label-sm">Ondergrens:</label>
+                {% if dv_value_obj.lower and dv_value_obj.lower._type %}
+                    {% if dv_value_obj.lower._type == 'DV_COUNT' %}
+                        <input type="number" step="1" class="form-control form-control-sm" value="{{ dv_value_obj.lower.magnitude if dv_value_obj.lower.magnitude is not none else '' }}" placeholder="Ondergrens (getal)">
+                    {% elif dv_value_obj.lower._type == 'DV_QUANTITY' %}
+                        <div class="d-flex">
+                            <input type="number" step="any" class="form-control form-control-sm" value="{{ dv_value_obj.lower.magnitude if dv_value_obj.lower.magnitude is not none else '' }}" placeholder="Waarde">
+                            <input type="text" class="form-control form-control-sm ms-2" style="max-width: 80px;" value="{{ dv_value_obj.lower.units or '' }}" placeholder="Eenheid">
+                        </div>
+                    {% elif dv_value_obj.lower._type == 'DV_DATE' or dv_value_obj.lower._type == 'DV_DATE_TIME' %}
+                         {{ render_input_for_dv_type(dv_value_obj.lower, id_prefix ~ '_lower_dt') }}
+                    {% else %}
+                        <span class="text-muted small">Ondergrens type: {{ dv_value_obj.lower._type }}</span>
+                    {% endif %}
+                {% else %} <span class="text-muted small">- geen ondergrens -</span> {% endif %}
+            </div>
+            <div class="interval-bound-group">
+                <label class="form-label form-label-sm">Bovengrens:</label>
+                 {% if dv_value_obj.upper and dv_value_obj.upper._type %}
+                    {% if dv_value_obj.upper._type == 'DV_COUNT' %}
+                        <input type="number" step="1" class="form-control form-control-sm" value="{{ dv_value_obj.upper.magnitude if dv_value_obj.upper.magnitude is not none else '' }}" placeholder="Bovengrens (getal)">
+                    {% elif dv_value_obj.upper._type == 'DV_QUANTITY' %}
+                        <div class="d-flex">
+                            <input type="number" step="any" class="form-control form-control-sm" value="{{ dv_value_obj.upper.magnitude if dv_value_obj.upper.magnitude is not none else '' }}" placeholder="Waarde">
+                            <input type="text" class="form-control form-control-sm ms-2" style="max-width: 80px;" value="{{ dv_value_obj.upper.units or '' }}" placeholder="Eenheid">
+                        </div>
+                    {% elif dv_value_obj.upper._type == 'DV_DATE' or dv_value_obj.upper._type == 'DV_DATE_TIME' %}
+                         {{ render_input_for_dv_type(dv_value_obj.upper, id_prefix ~ '_upper_dt') }}
+                    {% else %}
+                        <span class="text-muted small">Bovengrens type: {{ dv_value_obj.upper._type }}</span>
+                    {% endif %}
+                {% else %} <span class="text-muted small">- geen bovengrens -</span> {% endif %}
+            </div>
+        </div>
+    {% elif dv_value_obj._type == 'DV_DURATION' %}
+        <div class="duration-fields-wrapper">
+            <div class="duration-target-field-group">
+                <label for="{{id_prefix}}_dur_target_desc" class="form-label form-label-sm"></label>
+                <input type="text" id="{{id_prefix}}_dur_target_desc" name="{{id_prefix}}_dur_target_desc" class="form-control form-control-sm" placeholder="">
+            </div>
+            {# De 6 tijdscomponenten, "Jaren" is hier verwijderd #}
+            <div class="duration-components-row mt-2">
+                {% set fields = {'months': 'Maanden', 'weeks': 'Weken', 'days': 'Dagen', 'hours': 'Uren', 'minutes': 'Minuten', 'seconds': 'Seconden'} %}
+                {% for field, label_text in fields.items() %}
+                    <div class="duration-component-field">
+                        <label for="{{id_prefix}}_dur_{{field}}" class="form-label form-label-sm">{{label_text}}:</label>
+                        <input type="number" id="{{id_prefix}}_dur_{{field}}" name="{{id_prefix}}_dur_{{field}}" class="form-control form-control-sm" min="0" step="1" 
+                               value="{{ dv_value_obj[field] if dv_value_obj[field] is not none and field in dv_value_obj else '' }}" placeholder="0">
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% elif dv_value_obj._type == 'DV_PROPORTION' %}
+        <div class="proportion-fields">
+            <div class="proportion-field-group">
+                <label for="{{id_prefix}}_prop_num" class="form-label form-label-sm">Teller:</label>
+                <input type="number" step="any" id="{{id_prefix}}_prop_num" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.numerator if dv_value_obj.numerator is not none else '' }}" placeholder="Teller">
+            </div>
+            <div class="proportion-field-group">
+                <label for="{{id_prefix}}_prop_den" class="form-label form-label-sm">Noemer:</label>
+                <input type="number" step="any" id="{{id_prefix}}_prop_den" class="form-control form-control-sm" 
+                       value="{{ dv_value_obj.denominator if dv_value_obj.denominator is not none else '' }}" placeholder="Noemer (niet 0)">
+            </div>
+        </div>
+    {% else %}
+        <input type="text" class="form-control form-control-sm" value="(Type: {{ dv_value_obj._type }})" readonly>
+    {% endif %}
+{% endmacro %}
+
+
 {# MACRO voor de Question Grid layout #}
 {% macro render_question_grid(node, comments_by_path, current_section_index) %}
   {% if node.is_leaf %}
@@ -35,7 +228,6 @@
 
     <div class="question-grid list-group-item {% if node.level and node.level > 0 %}level-{{ node.level }}-question{% endif %}">
       <div class="question-details">
-        {# WIJZIGING: nodeId wordt nu hierboven weergegeven, de tooltip is weg #}
         {% if node.archetype_node_id %}
         <div class="question-node-id">[{{ node.archetype_node_id }}]</div>
         {% endif %}
@@ -48,32 +240,25 @@
         </div>
         <div class="question-value-area">
           {% if node.value %}
-            {% if node.value._type=='DV_TEXT' %}
-              <input type="text" class="form-control form-control-sm" placeholder="" value="{{ node.value.value or '' }}">
-            {% elif node.value._type=='DV_BOOLEAN' %}
-              <div class="d-flex gap-3">
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="bool_{{ html_id_prefix }}" id="yes-{{ html_id_prefix }}" value="true" {{ 'checked' if node.value.value }}>
-                  <label class="form-check-label" for="yes-{{ html_id_prefix }}">Ja</label>
-                </div>
-                <div class="form-check">
-                  <input class="form-check-input" type="radio" name="bool_{{ html_id_prefix }}" id="no-{{ html_id_prefix }}" value="false" {{ 'checked' if node.value.value is sameas(false) }}>
-                  <label class="form-check-label" for="no-{{ html_id_prefix }}">Nee</label>
-                </div>
-              </div>
-            {% elif node.value._type=='DV_CODED_TEXT' %}
-              <select class="form-select form-select-sm professional-select" placeholder="">
-                  <option value="">-- Selecteer {{ node.value.options|length if node.value.options else '0' }} optie(s) --</option>
-                  {% for option_item in node.value.options %}
-                      <option value="{{ option_item.value }}" {% if option_item.value == node.value.value %}selected{% endif %}>{{ option_item.label }}</option>
-                  {% endfor %}
-              </select>
-            {% elif node.value._type == 'DV_DATE' %}
-                <input type="date" class="form-control form-control-sm" value="{{ node.value.value if node.value.value is not none else '' }}">
-            {% elif node.value._type == 'DV_DATE_TIME' %}
-                <input type="datetime-local" class="form-control form-control-sm" value="{{ node.value.value if node.value.value is not none else '' }}">
+            {% if node.value._type == 'CHOICE' %}
+                {% if node.value.options and node.value.options|length > 0 %}
+                    {% for choice_option in node.value.options %}
+                        <div class="choice-option-block">
+                            <div class="choice-info">
+                                Mogelijke invoer als {{ choice_option.name.value | default('Optie') }} (Type: {{ choice_option.value._type if choice_option.value else 'Onbekend' }}):
+                            </div>
+                            {% if choice_option.value %}
+                                {{ render_input_for_dv_type(choice_option.value, html_id_prefix ~ '_choice' ~ loop.index0) }}
+                            {% else %}
+                                <p class="text-danger small">Geen waarde structuur gedefinieerd voor deze keuze-optie.</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-danger small">CHOICE type zonder gedefinieerde opties.</p>
+                {% endif %}
             {% else %}
-                <input type="text" class="form-control form-control-sm" value="{{ node.value.value or ('(Type: ' ~ node.value._type ~ ')') }}" readonly>
+                {{ render_input_for_dv_type(node.value, html_id_prefix) }}
             {% endif %}
           {% else %}
             <input type="text" class="form-control form-control-sm" value="(Geen invoer)" readonly>
@@ -123,7 +308,6 @@
                 {% endif %}
             </h4>
             <div class="container-body">
-                {# Recursief aanroepen voor kinderen van deze container #}
                 {{ render_questionnaire_structure(node.children, comments_by_path, loop_prefix ~ "-" ~ loop.index0, current_section_index) }}
             </div>
         </div>
@@ -143,8 +327,8 @@
         
         <div class="title-bar-actions">
             <div class="reviewer-control">
-                <label for="globalAuthorName" class="form-label fw-semibold small me-2">Reviewer: </label>
-                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 200px;" placeholder="">
+                <label for="globalAuthorName" class="form-label fw-semibold small me-2">Reviewer:</label>
+                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 200px;" placeholder="Uw naam...">
             </div>
             <a href="{{ url_for('main.export_comments_csv') }}" class="btn btn-secondary btn-sm" target="_blank">
                 <i class="fas fa-download me-1"></i> Exporteer Commentaar
@@ -155,7 +339,6 @@
     <div class="content-panel bg-white p-3 rounded-bottom shadow-sm"> 
       {% if current_section %}
             <div class="section-header">
-                {# WIJZIGING: Nummering toegevoegd aan de sectietitel #}
                 <h2 class="section-title">{{ current_section_index + 1 }}. {{ current_section.name.value }}</h2>
             </div>
             
