@@ -1,140 +1,212 @@
 {% extends "base.html" %}
 
-{% macro render_comment(comment, element_path_for_reply_form) %}
-<div class="comment {% if comment.parent_id %}is-reply{% endif %}">
-    <div class="comment-author">{{ comment.author_name }}</div>
-    <div class="comment-text">{{ comment.comment_text }}</div>
-    <div class="comment-meta">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
-    <details>
-        <summary>Reageren</summary>
-        <form method="post" class="reply-form">
-            {# Gebruik het correcte element_path van het hoofditem voor de reply #}
-            <input type="hidden" name="element_path" value="{{ element_path_for_reply_form }}">
-            <input type="hidden" name="parent_id" value="{{ comment.id }}">
-            <div>
-                <label for="author_name_reply_{{ comment.id }}">Uw naam:</label>
-                <input type="text" name="author_name" id="author_name_reply_{{ comment.id }}" required>
-            </div>
-            <div>
-                <label for="comment_text_reply_{{ comment.id }}">Uw reactie:</label>
-                <textarea name="comment_text" id="comment_text_reply_{{ comment.id }}" rows="2" required></textarea>
-            </div>
-            <button type="submit">Plaats Reactie</button>
-        </form>
-    </details>
-    
-    {% if comment.replies %}
-        {% for reply in comment.replies.order_by(Comment.created_at.asc()) %}
-            {# Geef het element_path van het hoofditem door aan recursieve aanroepen #}
-            {{ render_comment(reply, element_path_for_reply_form) }}
-        {% endfor %}
-    {% endif %}
+{% block head %}
+  {{ super() }}
+  {# Font Awesome is nog steeds nodig voor andere iconen als u die gebruikt,
+     maar niet meer voor de +/- van de accordeon als we die functionaliteit verwijderen.
+     Voor nu laten we het staan, mocht u het elders gebruiken.
+  #}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+{% endblock %}
+
+{# MACRO voor een enkele commentaar (ongewijzigd) #}
+{% macro render_item_comment(comment) %}
+<div class="comment">
+  <div class="comment-author">{{ comment.author_name }}</div>
+  <div class="comment-text">{{ comment.comment_text | replace('\n','<br>') | safe }}</div>
+  <div class="comment-meta">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') if comment.created_at else 'Zojuist' }}</div>
 </div>
+{% endmacro %}
+
+{# MACRO voor de Question Grid layout (ongewijzigd) #}
+{% macro render_question_grid(node, comments_by_path) %}
+  {% if node.is_leaf %}
+    {% set label = node.name.value if node.name else 'Onbekende vraag' %}
+    {% set path = node.element_path_for_comments %}
+    {% set comments = comments_by_path.get(path, []) %}
+    {% set temp_path_for_id = path | string | replace('.', '-') | replace('[', '_') | replace(']', '_') | replace(',', '_') | replace('(', '_') | replace(')', '_') | replace('/', '_') | replace(' ', '_') %}
+    {% set html_id_prefix = 'q-' ~ (temp_path_for_id | lower | truncate(60,'')) %}
+
+    <div class="question-grid list-group-item {% if node.level and node.level > 0 %}level-{{ node.level }}-question{% endif %}">
+      <div class="question-details">
+        <div class="question-name-line">
+            <span class="question-name-text">{{ label }}</span>
+            {% if node.min is not none and node.max is not none %}
+                <span class="occurrence ms-1">[{{ node.min }}..{% if node.max == -1 %}*{% else %}{{ node.max }}{% endif %}]</span>
+            {% endif %}
+        </div>
+        <div class="question-value-area">
+          {% if node.value %}
+            {% if node.value._type=='DV_CODED_TEXT' %}
+              <select class="form-select form-select-sm professional-select" placeholder="Typ om te zoeken...">
+                  <option value="">-- Selecteer {{ node.value.options|length if node.value.options else '0' }} optie(s) --</option>
+                  {% for option_item in node.value.options %}
+                      <option value="{{ option_item.value }}" {% if option_item.value == node.value.value %}selected{% endif %}>{{ option_item.label }}</option>
+                  {% endfor %}
+              </select>
+            {% elif node.value._type=='DV_BOOLEAN' %}
+              <div class="d-flex gap-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="bool_{{ html_id_prefix }}" id="yes-{{ html_id_prefix }}" value="true" {{ 'checked' if node.value.value is sameas(true) }}>
+                  <label class="form-check-label" for="yes-{{ html_id_prefix }}">Ja</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="bool_{{ html_id_prefix }}" id="no-{{ html_id_prefix }}" value="false" {{ 'checked' if node.value.value is sameas(false) }}>
+                  <label class="form-check-label" for="no-{{ html_id_prefix }}">Nee</label>
+                </div>
+              </div>
+            {% elif node.value._type == 'DV_DATE' %}
+                <input type="date" class="form-control form-control-sm" value="{{ node.value.value if node.value.value is not none else '' }}">
+            {% elif node.value._type == 'DV_DATE_TIME' %}
+                <input type="datetime-local" class="form-control form-control-sm" value="{{ node.value.value if node.value.value is not none else '' }}">
+            {% else %}
+                <input type="text" class="form-control form-control-sm" placeholder="Tekst…" value="{{ node.value.value or '' }}">
+            {% endif %}
+          {% else %}
+            <input type="text" class="form-control form-control-sm" value="(Geen invoer)" readonly>
+          {% endif %}
+        </div>
+      </div>
+      <div class="comments-section">
+        <h3 class="comment-title">Opmerkingen</h3>
+        <div class="comments-list" id="comments-list-{{ html_id_prefix }}">
+          {% if comments %}
+            {% for comment in comments|sort(attribute='created_at') %}
+              {{ render_item_comment(comment) }}
+            {% endfor %}
+          {% else %}
+            <p class="text-muted fst-italic small no-comments-yet">Nog geen opmerkingen.</p>
+          {% endif %}
+        </div>
+        <form method="post" class="inline-comment-form">
+          <input type="hidden" name="element_path" value="{{ path }}">
+          <input type="hidden" name="author_name" class="global-author-name-sync">
+          <textarea name="comment_text" class="form-control form-control-sm" rows="3" placeholder="Typ een opmerking..." required></textarea>
+          <button type="submit" class="btn btn-primary btn-sm w-100 mt-2">Plaats</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endmacro %}
+
+{# --- AANGEPAST: Macro zonder accordion collapse functionaliteit --- #}
+{% macro render_questionnaire_structure(items, parent_id_prefix_for_children, comments_by_path, loop_prefix) %}
+    {% for node in items %}
+      {% set temp_node_id_for_html = node.archetype_node_id | string | replace('.', '-') | replace('[', '_') | replace(']', '_') | replace(',', '_') | replace('(', '_') | replace(')', '_') | replace('/', '_') | replace(' ', '_') %}
+      {% set node_id_html = (loop_prefix ~ "-" ~ (loop.index0|string) ~ "-" ~ temp_node_id_for_html | lower | truncate(60,'')) %}
+      {# collapse_target_id is niet meer nodig #}
+
+      {% if node.is_leaf %}
+        {{ render_question_grid(node, comments_by_path) }}
+      {% else %} {# Dit is een container (SECTION, EVALUATION, CLUSTER, etc.) #}
+        <div class="accordion-item {% if node.level and node.level > 0 %}level-{{ node.level }}{% endif %}">
+            <h2 class="accordion-header" id="heading-{{ node_id_html }}">
+                {# De button is nu een div, data-bs-* attributen zijn verwijderd #}
+                <div class="accordion-button-static"> 
+                    {# --- AANGEPAST: Punt toegevoegd na sectienummer --- #}
+                    {% if node.section_number %}
+                        <span class="section-number">{{ node.section_number }}.</span>
+                    {% endif %}
+                    {{ node.name.value }}
+                    {% if node.min is not none and node.max is not none %}
+                        <span class="occurrence ms-2">[{{ node.min }}..{% if node.max == -1 %}*{% else %}{{ node.max }}{% endif %}]</span>
+                    {% endif %}
+                </div>
+            </h2>
+            {# De body is nu altijd zichtbaar. id, data-bs-parent, collapse en show classes zijn verwijderd. #}
+            <div class="accordion-body">
+                {{ render_questionnaire_structure(node.children, "children-of-" ~ node_id_html, comments_by_path, loop_prefix ~ "-" ~ loop.index0) }}
+            </div>
+        </div>
+      {% endif %}
+    {% endfor %}
 {% endmacro %}
 
 
 {% block content %}
-    <h1>{{ questionnaire.name.value if questionnaire and questionnaire.name else "Vragenlijst" }}</h1>
-    <div class="questionnaire-container">
-    {% if questionnaire and questionnaire.content %}
-        {% for item in questionnaire.content %} {# item is bv. een OBSERVATION, SECTION, etc. #}
-            {% set current_item_name = item.name.value if item.name else "Naamloze sectie" %}
-            <div class="item-section-header">
-                <h3>{{ current_item_name }} ({{ item.archetype_node_id }})</h3>
+<div class="main-container">
+    <div class="content-panel" id="contentPanel">
+        <div class="questionnaire-title-bar">
+            <div class="d-flex flex-column">
+              <h1 class="h3 mb-1">{{ questionnaire.name.value if questionnaire.name else 'Vragenlijst' }}
+                {% if questionnaire and questionnaire.version %}
+                    <span class="badge bg-primary text-white ms-2 fw-normal">v{{ questionnaire.version }}</span>
+                {% endif %}
+              </h1>
+              {% if total_sections > 0 %}
+                <span class="text-muted small">Sectie {{ current_section_index + 1 }} van {{ total_sections }}</span>
+              {% endif %}
             </div>
-
-            {# Bepaal de lijst van elementen om te tonen #}
-            {% set elements_to_display = [] %}
-            {% if item.data and item.data.get('events') and item.data.events and item.data.events[0].data and item.data.events[0].data.get('items') %}
-                {# Voor OBSERVATION-achtige structuur #}
-                {% set elements_to_display = item.data.events[0].data['items'] %}  
-            {% elif item.data and item.data.get('items') %}
-                {# Voor EVALUATION, SECTION, CLUSTER etc. met items direct onder data #}
-                {% set elements_to_display = item.data['items'] %}  
-            {% endif %}
-
-            {% for element in elements_to_display %}
-                <div class="item">
-                    <span class="item-label">
-                        {{ element.name.value if element.name and element.name.value else "Naamloos element" }}:
-                        <small class="item-node-id">({{ element.archetype_node_id }})</small>
-                    </span>
-
-                    {% if element.value %}
-                        {% if element.value._type == 'DV_QUANTITY' %}
-                            <span class="item-value"><i>(Getal)</i> {{ element.value.units if element.value.units else "" }}</span>
-                        {% elif element.value._type == 'DV_TEXT' %}
-                            <span class="item-value"><i>(Tekst)</i></span>
-                        {% elif element.value._type == 'DV_CODED_TEXT' %}
-                            <span class="item-value"><i>(Keuzelijst)</i>
-                                {% if element.value.options %}
-                                    <select disabled>
-                                        <option value="">-- Selecteer --</option>
-                                        {% for option in element.value.options %}
-                                            <option value="{{ option.value }}">{{ option.label }}</option>
-                                        {% endfor %}
-                                    </select>
-                                {% endif %}
-                            </span>
-                        {% elif element.value._type == 'DV_BOOLEAN' %}
-                             <span class="item-value"><i>(Ja/Nee)</i></span>
-                        {% elif element.value._type == 'DV_DATE_TIME' %}
-                             <span class="item-value"><i>(Datum/Tijd)</i></span>
-                        {% elif element.value._type == 'DV_DATE' %}
-                             <span class="item-value"><i>(Datum)</i></span>
-                        {% elif element.value._type == 'DV_TIME' %}
-                             <span class="item-value"><i>(Tijd)</i></span>
-                        {% elif element.value._type == 'DV_COUNT' %}
-                             <span class="item-value"><i>(Aantal)</i></span>
-                        {% else %}
-                            <span class="item-value">(Data type: {{ element.value._type }})</span>
-                        {% endif %}
-                    {% else %}
-                        <span class="item-value">(Geen waarde-structuur gedefinieerd)</span>
-                    {% endif %}
-                    
-                    <div class="comment-section">
-                        <h4>Commentaren</h4>
-                        {# Gebruik het AQL pad dat vanuit Python komt #}
-                        {% set element_path = element.element_path_for_comments %}
-                        
-                        {% if comments_by_path[element_path] %}
-                            {% for comment in comments_by_path[element_path] %}
-                                {{ render_comment(comment, element_path) }}
-                            {% endfor %}
-                        {% else %}
-                            <p><i>Nog geen opmerkingen.</i></p>
-                        {% endif %}
-
-                        <hr>
-                        <form method="post">
-                            <input type="hidden" name="element_path" value="{{ element_path }}">
-                            <h4>Nieuw commentaar toevoegen:</h4>
-                            <div>
-                                <label for="author_name_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}">Uw naam:</label>
-                                <input type="text" name="author_name" id="author_name_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}" required>
-                            </div>
-                            <div>
-                                <label for="comment_text_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}">Uw commentaar:</label>
-                                <textarea name="comment_text" id="comment_text_main_{{ item.archetype_node_id }}_{{ element.archetype_node_id }}" rows="3" required></textarea>
-                            </div>
-                            <button type="submit">Plaats Commentaar</button>
-                        </form>
-                    </div>
-                </div>
-            {% endfor %}
-            {% if not elements_to_display %}
-                <div class="item">
-                     <p><i>Geen direct displayable items gevonden in sectie: {{ current_item_name }}</i></p>
-                </div>
-            {% endif %}
-            <hr style="border-top: 2px solid #ccc; margin: 20px 0;">
-        {% endfor %}
-    {% else %}
-        <p>Geen content gevonden in de template of template kon niet geladen worden.</p>
-        {% if questionnaire and questionnaire.name and (questionnaire.name.value == "Fout bij laden template" or questionnaire.name.value == "FOUT: Template bestand niet geladen of corrupt") %}
-            <p>Controleer of het bestand `app/templates_openehr/ACP-DUTCH.json` bestaat en correct is. Kijk ook in de server logs voor meer details.</p>
+            <div>
+                <label for="globalAuthorName" class="form-label fw-semibold small">Uw reviewer naam:</label>
+                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 300px;" placeholder="Jan Janssen…">
+            </div>
+        </div>
+        {% if current_section %}
+            {# De div hieronder had class "accordion", kan nu weg of een generieke class krijgen als nodig voor styling #}
+            <div class="sections-container" id="singleSectionContainer"> 
+                {{ render_questionnaire_structure([current_section], "singleSection", comments_by_path, "L0") }}
+            </div>
+        {% else %}
+            <div class="alert alert-warning m-3">Geen inhoud beschikbaar voor deze sectie.</div>
         {% endif %}
-    {% endif %}
+        <div class="pagination-controls">
+            {% if current_section_index > 0 %}
+                <a href="{{ url_for('main.form_page', section_index=current_section_index - 1) }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i> Vorige Sectie
+                </a>
+            {% else %}
+                <a href="#" class="btn btn-secondary invisible" aria-hidden="true">Vorige Sectie</a>
+            {% endif %}
+
+            {% if current_section_index < total_sections - 1 %}
+                <a href="{{ url_for('main.form_page', section_index=current_section_index + 1) }}" class="btn btn-primary">
+                    Volgende Sectie <i class="fas fa-arrow-right ms-2"></i>
+                </a>
+            {% else %}
+                <button type="button" class="btn btn-success" onclick="alert('Vragenlijst voltooid!')">
+                    Vragenlijst Voltooien <i class="fas fa-check ms-2"></i>
+                </button>
+            {% endif %}
+        </div>
     </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const globalNameInput = document.getElementById('globalAuthorName');
+  const storageKey = 'reviewerName';
+
+  function syncGlobalAuthorName() {
+    const authorName = globalNameInput.value.trim();
+    localStorage.setItem(storageKey, authorName);
+    document.querySelectorAll('.global-author-name-sync').forEach(input => {
+      input.value = authorName;
+    });
+  }
+
+  if (globalNameInput) {
+    globalNameInput.value = localStorage.getItem(storageKey) || '';
+    syncGlobalAuthorName();
+    globalNameInput.addEventListener('input', syncGlobalAuthorName);
+  }
+  
+  // De Bootstrap accordion initialisatie is niet meer nodig als we geen accordeon gebruiken.
+  // var accordionTriggers = document.querySelectorAll('.accordion-button')
+  // accordionTriggers.forEach(function (trigger) {
+  //   ...
+  // });
+
+  document.querySelectorAll('.professional-select').forEach((el) => {
+    new TomSelect(el, {
+      create: false,
+      sortField: {
+        field: "text",
+        direction: "asc"
+      },
+      plugins: ['clear_button'], 
+    });
+  });
+});
+</script>
 {% endblock %}
