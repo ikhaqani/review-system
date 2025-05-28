@@ -474,3 +474,106 @@ select.form-select-sm {
   background-color: #cff4fc;
   border-color: #b6effb;
 }
+
+/* ===================================================================
+ * RESPONSIVE AANPASSINGEN
+ * =================================================================== */
+
+/* Kleine schermen (mobiel) */
+@media (max-width: 767.98px) {
+  .main-container {
+      padding: var(--spacing-md);
+      padding-top: calc(var(--min-global-header-height) + var(--spacing-md)); /* Ruimte voor sticky header */
+  }
+
+  .questionnaire-title-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+  }
+  .questionnaire-title-bar .questionnaire-title {
+      font-size: 1.1rem; /* Iets kleiner op mobiel */
+  }
+  .title-bar-actions {
+      flex-direction: column;
+      align-items: flex-start;
+      width: 100%;
+      gap: var(--spacing-sm);
+  }
+  .reviewer-control {
+      width: 100%;
+  }
+  #globalAuthorName {
+      width: 100%;
+      max-width: none;
+  }
+  .title-bar-actions .btn { /* Export knop */
+      width: 100%;
+      justify-content: center;
+  }
+
+  .section-header .section-title {
+      font-size: 1.3rem; /* Iets kleiner op mobiel */
+  }
+
+  /* Inspringing voor hiërarchie iets verminderen op mobiel */
+  :root {
+      --indent-base: var(--spacing-md);
+      --indent-step: var(--spacing-lg);
+  }
+
+  .question-grid {
+      flex-direction: column;
+      align-items: stretch; /* Zorgt dat items de volle breedte nemen */
+      gap: var(--spacing-md);
+      padding-right: 0; /* Geen extra padding rechts meer nodig */
+  }
+  .question-details {
+      width: 100%;
+  }
+  .comments-section {
+      width: 100%;
+      border-left: none;
+      border-top: 1px solid var(--theme-border-soft);
+      padding-left: 0; /* Geen padding links, of var(--spacing-sm) indien gewenst */
+      padding-top: var(--spacing-lg);
+      margin-top: var(--spacing-lg);
+  }
+
+  /* Inputvelden in complexe types (duration, interval etc) */
+  .duration-component-field {
+      flex-basis: calc(48% - var(--spacing-sm)); /* 2 per rij */
+  }
+  .interval-bound-group .d-flex {
+      flex-direction: column; /* Magnitude en unit onder elkaar */
+      gap: var(--spacing-xs);
+  }
+  .interval-bound-group .d-flex input[type="text"] { /* Unit input */
+      max-width: none; /* Volle breedte */
+  }
+
+  .pagination-controls {
+      flex-direction: column;
+      gap: var(--spacing-md);
+  }
+  .pagination-controls .btn, .pagination-controls .float-end {
+      width: 100%;
+      float: none !important;
+      text-align: center;
+      justify-content: center;
+  }
+}
+
+/* Nog kleinere schermen, indien nodig voor specifieke elementen */
+@media (max-width: 480px) {
+  .duration-component-field {
+      flex-basis: 100%; /* 1 per rij */
+  }
+  .questionnaire-title-bar .questionnaire-title {
+      font-size: 1rem; 
+  }
+   .section-header .section-title {
+      font-size: 1.2rem;
+  }
+}
