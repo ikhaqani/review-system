@@ -38,7 +38,7 @@
         <div class="question-value-area">
           {% if node.value %}
             {% if node.value._type=='DV_CODED_TEXT' %}
-              <select class="form-select form-select-sm professional-select" placeholder="Typ om te zoeken...">
+              <select class="form-select form-select-sm professional-select" placeholder="">
                   <option value="">-- Selecteer {{ node.value.options|length if node.value.options else '0' }} optie(s) --</option>
                   {% for option_item in node.value.options %}
                       <option value="{{ option_item.value }}" {% if option_item.value == node.value.value %}selected{% endif %}>{{ option_item.label }}</option>
@@ -60,7 +60,7 @@
             {% elif node.value._type == 'DV_DATE_TIME' %}
                 <input type="datetime-local" class="form-control form-control-sm" value="{{ node.value.value if node.value.value is not none else '' }}">
             {% else %}
-                <input type="text" class="form-control form-control-sm" placeholder="Tekst…" value="{{ node.value.value or '' }}">
+                <input type="text" class="form-control form-control-sm" placeholder="" value="{{ node.value.value or '' }}">
             {% endif %}
           {% else %}
             <input type="text" class="form-control form-control-sm" value="(Geen invoer)" readonly>
@@ -103,9 +103,8 @@
             <h2 class="accordion-header" id="heading-{{ node_id_html }}">
                 {# De button is nu een div, data-bs-* attributen zijn verwijderd #}
                 <div class="accordion-button-static"> 
-                    {# --- AANGEPAST: Punt toegevoegd na sectienummer --- #}
                     {% if node.section_number %}
-                        <span class="section-number">{{ node.section_number }}.</span>
+                        <span class="section-number">{{ node.section_number }}</span>
                     {% endif %}
                     {{ node.name.value }}
                     {% if node.min is not none and node.max is not none %}
@@ -138,8 +137,8 @@
               {% endif %}
             </div>
             <div>
-                <label for="globalAuthorName" class="form-label fw-semibold small">Uw reviewer naam:</label>
-                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 300px;" placeholder="Jan Janssen…">
+                <label for="globalAuthorName" class="form-label fw-semibold small">Naam reviewer:</label>
+                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 300px;" placeholder="">
             </div>
         </div>
         {% if current_section %}
