@@ -1,0 +1,360 @@
+{% extends "base.html" %}
+
+{% block head %}
+  {{ super() }}
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    /* Stijlen voor de dynamisch toegevoegde commentaar secties */
+    .medblocks-question-container {
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #eee;
+    }
+    .comment-container-dynamic {
+      margin-top: 10px;
+      padding: 10px;
+      background-color: #f9f9f9;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+    }
+    .comment-container-dynamic h5 {
+      font-size: 0.9rem;
+      color: #555;
+      margin-bottom: 8px;
+    }
+    .comment-container-dynamic textarea {
+      min-height: 60px;
+    }
+    .comment-container-dynamic .comments-list-dynamic .comment {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        padding: 8px;
+        margin-bottom: 5px;
+        border-radius: 3px;
+        font-size: 0.85rem;
+    }
+    .comment-container-dynamic .comments-list-dynamic .comment-author {
+        font-weight: bold;
+        color: #333;
+        font-size: 0.8rem;
+    }
+    .comment-container-dynamic .comments-list-dynamic .comment-meta {
+        font-size: 0.75rem;
+        color: #777;
+    }
+    .medblocks-field-wrapper { /* Wrapper voor Medblocks veld + commentaar */
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 1rem;
+    }
+
+    /* Je bestaande stijlen */
+    .question-node-id {
+      font-family: var(--font-mono, monospace);
+      font-size: 0.75rem;
+      color: var(--theme-text-secondary, #4b5563);
+      margin-bottom: var(--spacing-xs, 4px);
+    }
+    /* ... (rest van je bestaande custom styles) ... */
+  </style>
+{% endblock %}
+
+{# Macro voor het renderen van een enkel commentaar (kan hergebruikt worden in JS) #}
+{% macro render_single_comment_item(comment) %}
+<div class="comment">
+  <div class="comment-author">{{ comment.author_name }}</div>
+  <div class="comment-text">{{ comment.comment_text | replace('\n','<br>') | safe }}</div>
+  <div class="comment-meta">{{ comment.created_at.strftime('%Y-%m-%d %H:%M') if comment.created_at else 'Zojuist' }}</div>
+</div>
+{% endmacro %}
+
+
+{% block content %}
+<div class="main-container container-fluid my-3">
+    <div class="questionnaire-title-bar">
+        {# Gebruik de correcte variabele naam hier, zoals doorgegeven door routes.py #}
+        <h1 class="h3 mb-0 questionnaire-title">{{ questionnaire_for_js.name.value if questionnaire_for_js and questionnaire_for_js.name else 'Vragenlijst' }}
+            {% if questionnaire_for_js and questionnaire_for_js.version %}
+                <span class="badge bg-primary text-white ms-2 fw-normal">v{{ questionnaire_for_js.version }}</span>
+            {% endif %}
+        </h1>
+        <div class="title-bar-actions">
+            <div class="reviewer-control">
+                <label for="globalAuthorName" class="form-label fw-semibold small me-2">Reviewer:</label>
+                <input id="globalAuthorName" class="form-control form-control-sm" style="max-width: 200px;" placeholder="Uw naam...">
+            </div>
+            <a href="{{ url_for('main.export_comments_csv') }}" class="btn btn-secondary btn-sm" target="_blank">
+                <i class="fas fa-download me-1"></i> Exporteer Commentaar
+            </a>
+        </div>
+    </div>
+
+    <div class="content-panel bg-white p-3 rounded-bottom shadow-sm">
+      {% if error_message %}
+        <div class="alert alert-danger m-3">Fout: {{ error_message }}</div>
+      {# Gebruik de correcte variabele namen hier #}
+      {% elif web_template_for_mb_js and questionnaire_for_js %}
+            <div id="medblocks-form-container" class="mb-3">
+                <mb-auto-form id="mijnOpenEHRFormulier" data-testid="mijn-formulier"></mb-auto-form>
+            </div>
+            <button type="button" id="verstuurKnop" class="btn btn-success mt-3">Verstuur Data Vragenlijst</button>
+            <hr>
+            <h3>Verzonden Data (debug output):</h3>
+            <pre id="verzondenDataOutput" style="background-color: #f5f5f5; border: 1px solid #ccc; padding: 10px; max-height: 300px; overflow-y: auto;"></pre>
+      {% else %}
+        <div class="alert alert-danger m-3">
+            Kan de vragenlijst niet laden.
+            De formulierdefinitie (<code>web_template_for_mb_js</code> - status: {{ 'Aanwezig' if web_template_for_mb_js else 'Ontbreekt/Falsy' }})
+            of de vragenlijststructuur (<code>questionnaire_for_js</code> - status: {{ 'Aanwezig' if questionnaire_for_js else 'Ontbreekt/Falsy' }})
+            is ongeldig of ontbreekt.
+            Controleer of het openEHR web template correct is geconfigureerd en geladen in de backend.
+        </div>
+      {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+
+  <script>
+  // Script voor globalAuthorName (onveranderd)
+  document.addEventListener('DOMContentLoaded', () => {
+    const globalNameInput = document.getElementById('globalAuthorName');
+    const storageKey = 'reviewerName';
+    function syncGlobalAuthorName() {
+      const authorName = globalNameInput.value.trim();
+      localStorage.setItem(storageKey, authorName);
+      document.querySelectorAll('.global-author-name-sync').forEach(input => { input.value = authorName; });
+    }
+    if (globalNameInput) {
+      globalNameInput.value = localStorage.getItem(storageKey) || '';
+      syncGlobalAuthorName();
+      globalNameInput.addEventListener('input', syncGlobalAuthorName);
+    }
+  });
+  </script>
+
+  <script type="module">
+    function createCommentHTML(comment) {
+        const text = comment.comment_text ? comment.comment_text.replace(/\n/g, '<br>') : '';
+        let metaDate;
+        if (comment.created_at) {
+            try {
+                metaDate = new Date(comment.created_at).toLocaleString('nl-NL', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+            } catch (e) {
+                metaDate = comment.created_at; 
+            }
+        } else {
+            metaDate = comment.created_at_str || 'Zojuist';
+        }
+        const author = comment.author_name || 'Anoniem';
+        return `
+            <div class="comment">
+              <div class="comment-author">${author}</div>
+              <div class="comment-text">${text}</div>
+              <div class="comment-meta">${metaDate}</div>
+            </div>`;
+    }
+
+    function addCommentSection(questionElement, aqlPath, existingCommentsList, globalAuthorNameElement) {
+        const safeAqlPath = aqlPath.replace(/[^a-zA-Z0-9\-_]/g, '-'); 
+        const commentContainerId = `comment-container-${safeAqlPath}`;
+        const commentsListId = `comments-list-${safeAqlPath}`;
+        const textareaId = `comment-text-${safeAqlPath}`;
+
+        if (document.getElementById(commentContainerId)) {
+            return;
+        }
+
+        const commentSectionHTML = `
+            <div class="comment-container-dynamic" id="${commentContainerId}">
+                <h5>Opmerkingen bij dit veld</h5>
+                <div class="comments-list-dynamic" id="${commentsListId}">
+                    ${existingCommentsList && existingCommentsList.length > 0 ? existingCommentsList.map(c => createCommentHTML(c)).join('') : '<p class="text-muted fst-italic small no-comments-yet">Nog geen opmerkingen.</p>'}
+                </div>
+                <form class="dynamic-comment-form mt-2" data-path="${aqlPath}">
+                    <input type="hidden" name="element_path" value="${aqlPath}">
+                    <input type="hidden" name="author_name" class="global-author-name-sync" value="${globalAuthorNameElement ? globalAuthorNameElement.value : ''}">
+                    <textarea name="comment_text" class="form-control form-control-sm" rows="2" placeholder="Typ een opmerking..." required id="${textareaId}"></textarea>
+                    <button type="submit" class="btn btn-secondary btn-sm w-100 mt-1">Plaats Opmerking</button>
+                </form>
+            </div>
+        `;
+        
+        let fieldWrapper = questionElement.closest('.medblocks-field-wrapper');
+        if (!fieldWrapper) {
+            fieldWrapper = document.createElement('div');
+            fieldWrapper.className = 'medblocks-field-wrapper';
+            questionElement.parentNode.insertBefore(fieldWrapper, questionElement);
+            fieldWrapper.appendChild(questionElement);
+        }
+        
+        // Voeg commentaar sectie toe *naast* (als broer/zus) het questionElement binnen de wrapper
+        // Dit voorkomt dat het IN het questionElement zelf wordt geplaatst (wat problemen kan geven met Medblocks)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = commentSectionHTML;
+        const commentNode = tempDiv.firstChild;
+        if (commentNode) {
+             fieldWrapper.appendChild(commentNode);
+        }
+
+
+        const newCommentForm = fieldWrapper.querySelector(`.dynamic-comment-form[data-path="${aqlPath}"]`);
+        if (newCommentForm) {
+            newCommentForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const authorInput = this.querySelector('.global-author-name-sync');
+                const textInput = this.querySelector('textarea[name="comment_text"]');
+                const pathInput = this.querySelector('input[name="element_path"]');
+
+                if (globalAuthorNameElement && !globalAuthorNameElement.value.trim()) {
+                    alert('Vul a.u.b. eerst uw reviewer naam in (bovenaan de pagina).');
+                    globalAuthorNameElement.focus(); return;
+                }
+                if (authorInput) authorInput.value = globalAuthorNameElement ? globalAuthorNameElement.value : 'Anoniem';
+
+                const commentData = { comment_text: textInput.value, author_name: authorInput.value, element_path: pathInput.value };
+
+                try {
+                    const response = await fetch("{{ url_for('main.handle_comment_post') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: new URLSearchParams(commentData).toString()
+                    });
+                    if (response.ok) {
+                        const commentsListDiv = document.getElementById(commentsListId);
+                        if (commentsListDiv) {
+                            const noCommentsP = commentsListDiv.querySelector('.no-comments-yet');
+                            if (noCommentsP) noCommentsP.remove();
+                            commentsListDiv.insertAdjacentHTML('beforeend', createCommentHTML({ ...commentData, created_at_str: new Date().toLocaleString('nl-NL') }));
+                        }
+                        textInput.value = '';
+                    } else {
+                         const errorText = await response.text();
+                        alert(`Fout bij plaatsen opmerking: ${response.status} - ${errorText}`);
+                    }
+                } catch (error) {
+                    console.error('Fout bij plaatsen opmerking:', error);
+                    alert('Netwerkfout bij plaatsen opmerking.');
+                }
+            });
+        }
+    }
+
+    // Functie collectAllAqlPaths blijft ongewijzigd
+    function collectAllAqlPaths(node, basePath = "") {
+        let paths = [];
+        if (!node) return paths;
+        const currentPath = node.aqlPath || (node.archetype_node_id ? `${basePath}/${node.archetype_node_id}` : null);
+        if (node.is_leaf && currentPath) {
+            paths.push(currentPath);
+        }
+        if (node.children && Array.isArray(node.children)) {
+            node.children.forEach(child => {
+                paths = paths.concat(collectAllAqlPaths(child, currentPath || basePath));
+            });
+        }
+        return paths;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const formElement = document.getElementById('mijnOpenEHRFormulier');
+        const verstuurKnop = document.getElementById('verstuurKnop');
+        const verzondenDataOutput = document.getElementById('verzondenDataOutput');
+        const globalAuthorNameElement = document.getElementById('globalAuthorName');
+
+        {# Gebruik |tojson voor Python dicts/lists naar JS objecten/arrays. Geen JSON.parse() meer nodig hier. #}
+        {% if web_template_for_mb_js and questionnaire_for_js %}
+            try {
+                const webTemplateData = {{ web_template_for_mb_js|tojson }}; 
+                const questionnaireData = {{ questionnaire_for_js|tojson }};
+                const commentsByPath = {{ comments_by_path_for_js|tojson|default('{}') }};
+                
+                console.log("DEBUG JS: webTemplateData:", webTemplateData);
+                console.log("DEBUG JS: questionnaireData:", questionnaireData);
+                console.log("DEBUG JS: commentsByPath:", commentsByPath);
+
+                if (formElement && webTemplateData && typeof webTemplateData === 'object' && Object.keys(webTemplateData).length > 0 && 
+                    questionnaireData && typeof questionnaireData === 'object' ) { // Object.keys check voor questionnaireData kan problemen geven als het bv. alleen een naam heeft maar geen 'content'
+                    
+                    const observer = new MutationObserver((mutationsList, observerInstance) => {
+                        const renderedFields = formElement.querySelectorAll('mb-input, mb-select, mb-date, mb-quantity, mb-coded-text, mb-boolean, mb-proportion, mb-duration, mb-identifier, mb-text, mb-paragraph, [data-path], [path]');
+                        
+                        if (renderedFields.length > 0 && !formElement.dataset.commentsAdded) {
+                            console.log("Medblocks UI formulier gerenderd, commentaar secties toevoegen...");
+                            formElement.dataset.commentsAdded = "true";
+
+                            const medblocksElements = formElement.querySelectorAll('[path]');
+                            if (medblocksElements.length > 0) {
+                                medblocksElements.forEach(el => {
+                                    const path = el.getAttribute('path');
+                                    if (path) {
+                                        const existingComments = commentsByPath[path] || [];
+                                        addCommentSection(el, path, existingComments, globalAuthorNameElement);
+                                    }
+                                });
+                            } else {
+                                console.warn("Geen elementen met 'path' attribuut gevonden in Medblocks formulier. Commentaar per veld kan niet worden toegevoegd.");
+                            }
+                             // observerInstance.disconnect(); // Overweeg dit later als alles stabiel is
+                        }
+                    });
+
+                    observer.observe(formElement, { childList: true, subtree: true });
+
+                    setTimeout(() => {
+                        formElement.webTemplate = webTemplateData;
+                        console.log("Medblocks UI: Web template toegewezen.");
+                        if (verzondenDataOutput) verzondenDataOutput.textContent = "Medblocks formulier geïnitialiseerd.";
+                    }, 50);
+
+                    if (verstuurKnop) {
+                        verstuurKnop.addEventListener('click', async () => {
+                            if (typeof formElement.reportValidity === 'function' && !formElement.reportValidity()) {
+                                alert('Vul a.u.b. alle verplichte velden correct in.'); return;
+                            }
+                            const formData = formElement.export();
+                            if (verzondenDataOutput) verzondenDataOutput.textContent = JSON.stringify(formData, null, 2);
+                            try {
+                                const response = await fetch("{{ url_for('main.submit_openehr_data') }}", {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify(formData),
+                                });
+                                const result = await response.json(); 
+                                if (!response.ok) {
+                                    throw new Error(`Serverfout ${response.status}: ${result.error || result.message || response.statusText}`);
+                                }
+                                alert(`Data verstuurd! Status: ${result.message || result.status}`);
+                            } catch (error) {
+                                console.error('Fout bij versturen data:', error);
+                                alert(`Fout bij versturen: ${error.message}`);
+                            }
+                        });
+                    }
+                } else {
+                    let errorMsg = "Initialisatiefout JavaScript: ";
+                    if (!formElement) errorMsg += "formElement niet gevonden. ";
+                    if (!webTemplateData || typeof webTemplateData !== 'object' || Object.keys(webTemplateData).length === 0) errorMsg += "webTemplateData ontbreekt of is leeg/ongeldig. ";
+                    if (!questionnaireData || typeof questionnaireData !== 'object') errorMsg += "questionnaireData ontbreekt of is ongeldig. "; // Object.keys check hier verwijderd voor flexibiliteit
+                    console.error(errorMsg);
+                    if(verzondenDataOutput) verzondenDataOutput.textContent = errorMsg;
+                }
+            } catch (e) {
+                console.error("Algemene JavaScript Fout (mogelijk bij parsen JSON of initialisatie):", e);
+                if(verzondenDataOutput) verzondenDataOutput.textContent = "Algemene JavaScript Fout. Controleer console.";
+            }
+        {% else %}
+            let warningMsg = "Medblocks UI: Kan niet initialiseren. ";
+            if (!web_template_for_mb_js) warningMsg += "'web_template_for_mb_js' data ontbreekt. ";
+            if (!questionnaire_for_js) warningMsg += "'questionnaire_for_js' data ontbreekt. ";
+            console.warn(warningMsg);
+            if(verzondenDataOutput) verzondenDataOutput.textContent = "Formulier kan niet geladen worden: benodigde data ontbreekt in de template.";
+            if (verstuurKnop) verstuurKnop.style.display = 'none';
+        {% endif %}
+    });
+  </script>
+{% endblock %}

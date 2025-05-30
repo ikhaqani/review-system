@@ -1,0 +1,618 @@
+/* =====================================================================
+ * app/static/style.css – Professional White Theme v3.2 (30-05-2025)
+ * Powerful full-screen ring loader + refined spacing
+ * ===================================================================== */
+
+/* ----------------------------------------------------------
+ * RESET & ACCESSIBILITY
+ * ----------------------------------------------------------*/
+ *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+ html{font-size:100%}
+ body{margin:0}
+ 
+ /* ----------------------------------------------------------
+  * TOKENS – Colour, Motion, Typography
+  * ----------------------------------------------------------*/
+ :root{
+   /* Core Palette */
+   --clr-ink:#0F172A;          /* Charcoal */
+   --clr-primary:#1D4ED8;      /* Royal blue */
+   --clr-secondary:#0EA5E9;    /* Sky blue */
+   --clr-accent:#F97316;       /* Soft orange */
+ 
+   --clr-grey-100:#F8FAFC;     /* Light bg */
+   --clr-grey-200:#EEF2F6;     /* Panels */
+   --clr-grey-300:#E2E8F0;     /* Borders */
+ 
+   /* Functional */
+   --clr-success:#16A34A;--clr-warning:#EAB308;--clr-danger:#DC2626; /* Rood voor de rand */
+   --focus-ring:rgba(29,78,216,.25); 
+   --focus-ring-light:rgba(255,255,255,.35); 
+ 
+   /* Motion */
+   --ease-standard:cubic-bezier(.4,0,.2,1);
+   --dur-fast:150ms;--dur-med:300ms;--dur-slow:700ms;
+ 
+   /* Elevation */
+   --shadow-xs:0 1px 2px rgba(15,23,42,.04);
+   --shadow-sm:0 2px 4px rgba(15,23,42,.06);
+   --shadow-md:0 4px 8px rgba(15,23,42,.08);
+   --shadow-lg:0 14px 32px rgba(15,23,42,.12);
+ 
+   /* Radii */
+   --radius-sm:4px;--radius-md:8px;--radius-lg:18px;
+ 
+   /* Typography / Layout */
+   --font-sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+   --font-size-base:15px;--line-height-base:1.6;
+   --header-h:4rem; 
+   --panel-radius: var(--radius-lg); 
+ }
+ 
+ @font-face{font-family:"Inter";font-style:normal;font-weight:400 700;font-display:swap;src:url('/static/fonts/Inter.var.woff2') format('woff2')}
+ 
+ /* ----------------------------------------------------------
+  * GLOBAL BASE
+  * ----------------------------------------------------------*/
+  body{
+    font-family: var(--font-sans);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-base);
+    color: var(--clr-ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  a{
+    color: var(--clr-primary);
+    text-decoration: none;
+    transition: color var(--dur-fast) var(--ease-standard);
+  }
+  
+  a:hover,
+  a:focus-visible{
+    color: var(--clr-secondary);
+  }
+  
+  :focus-visible{
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+ 
+ /* ==========================================================
+  * FULL-VIEWPORT RING LOADER 0→100 %
+  * ==========================================================*/
+ .loader-overlay{position:fixed;inset:0;display:flex;justify-content:center;align-items:center;background:#fff;z-index:2000;transition:opacity .45s var(--ease-standard),visibility .45s var(--ease-standard)}
+ .loader-overlay.fade-out{opacity:0;visibility:hidden}
+ 
+ .loader--ring{--value:0;--size:140px;--track:var(--clr-grey-200);--progress:var(--clr-primary);position:relative;width:var(--size);aspect-ratio:1/1}
+ .loader--ring::before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--progress) calc(var(--value)*1%),transparent 0),var(--track);mask:radial-gradient(farthest-side,transparent 11%,#000 12%);-webkit-mask:radial-gradient(farthest-side,transparent 11%,#000 12%);transition:background .1s linear}
+ .loader--ring .percent{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.1rem}
+ 
+ @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+ .loader--ring[data-complete="true"]{animation:pulse .8s var(--ease-standard) 2}
+ 
+ /* ==========================================================
+  * BUTTONS (Primary / Secondary)
+  * ==========================================================*/
+ .btn{display:inline-flex;align-items:center;gap:.5rem;border:none;border-radius:var(--radius-md);padding:.6rem 1.6rem;font-weight:600;cursor:pointer;transition:background var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard); line-height: var(--line-height-base);}
+ .btn-primary{background:var(--clr-primary);color:#fff}
+ .btn-primary:hover,.btn-primary:focus-visible{background:var(--clr-secondary);box-shadow:0 0 0 3px var(--focus-ring)}
+ .btn-secondary{background:var(--clr-grey-100);color:var(--clr-primary);border:1px solid var(--clr-grey-300)}
+ .btn-secondary:hover,.btn-secondary:focus-visible{background:#fff;color:var(--clr-secondary);border-color:var(--clr-grey-200);box-shadow:0 0 0 3px var(--focus-ring)}
+ .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+ .btn.btn-sm {
+    padding: .4rem .8rem; 
+    font-size: 0.875rem; 
+ }
+ 
+ /* ==========================================================
+  * LAYOUT & CARDS
+  * ==========================================================*/
+ .container{width:100%;max-width:1280px;margin-inline:auto;padding-inline:1rem}
+ .section{padding:4rem 0}
+ .section-alt{background:var(--clr-grey-100)}
+ .card{background:#fff;border:1px solid var(--clr-grey-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-xs);padding:2rem;transition:transform var(--dur-med) var(--ease-standard),box-shadow var(--dur-med) var(--ease-standard)}
+ .card:hover{transform:translateY(-6px);box-shadow:var(--shadow-md)}
+ 
+ /* ==========================================================
+  * TITLE BAR (Algemeen) + REVIEWER 
+  * ==========================================================*/
+ .title-bar{display:flex;justify-content:space-between;align-items:center;gap:1.5rem;background:#fff;border-bottom:1px solid var(--clr-grey-300);padding:1rem 2rem;position:sticky;top:0;z-index:1000}
+ .title-bar__actions{display:flex;align-items:center;gap:1rem}
+ .reviewer{display:flex;align-items:center;gap:.55rem}
+ .reviewer label{font-weight:600}
+ .reviewer input{width:14rem;padding:.55rem 1.1rem;font-size:.9rem;border:1px solid var(--clr-grey-300);border-radius:var(--radius-md);transition:border var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+ .reviewer input:focus-visible{outline:none;border-color:var(--clr-primary);box-shadow:0 0 0 3px var(--focus-ring)}
+ .reviewer input.is-valid{border-color:var(--clr-success)}
+ .reviewer input.is-invalid{border-color:var(--clr-danger)}
+ 
+ /* ==========================================================
+  * TOOLTIP / MODAL / SKELETON (unchanged)
+  * ==========================================================*/
+ .tooltip{position:relative;cursor:help}
+ .tooltip::after{content:attr(data-tooltip);position:absolute;left:50%;transform:translate(-50%,.25rem);bottom:100%;white-space:nowrap;padding:.4rem .7rem;font-size:.75rem;background:var(--clr-ink);color:#fff;border-radius:var(--radius-sm);opacity:0;pointer-events:none;box-shadow:var(--shadow-sm);transition:opacity var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+ .tooltip:hover::after{opacity:1;transform:translate(-50%,-.3rem)}
+ 
+ .modal{position:fixed;inset:0;display:flex;justify-content:center;align-items:center;visibility:hidden;opacity:0;transition:opacity var(--dur-med) var(--ease-standard);background:rgba(15,23,42,.4)}
+ .modal[data-open="true"]{visibility:visible;opacity:1}
+ .modal__dialog{background:#fff;border-radius:var(--radius-lg);padding:2rem 2.5rem;max-width:32rem;width:90%;transform:scale(.92);transition:transform var(--dur-med) var(--ease-standard)}
+ .modal[data-open="true"] .modal__dialog{transform:scale(1)}
+ 
+ @keyframes shimmer{0%{background-position:-450px 0}100%{background-position:450px 0}}
+ .skeleton{position:relative;overflow:hidden;background:var(--clr-grey-200)}
+ .skeleton::before{content:"";position:absolute;inset:0;background-image:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.6) 50%,rgba(255,255,255,0) 100%);background-repeat:no-repeat;background-size:450px 100%;animation:shimmer 1.2s infinite}
+ 
+ @keyframes fadeInUp{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:none}}
+ .animate-fadeInUp{animation:fadeInUp var(--dur-slow) var(--ease-standard) forwards}
+
+/* ==========================================================
+ * SPECIFIEKE PAGINA ELEMENTEN (Vragenlijst Pagina)
+ * ==========================================================*/
+
+.questionnaire-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  background-color: var(--clr-primary); 
+  padding: 0.9rem 1.2rem;
+  position: sticky;
+  top: 0; 
+  z-index: 1010; 
+}
+
+h1.questionnaire-title { 
+  font-size: 1.6rem; 
+  font-weight: 600; 
+  color: #fff; 
+  line-height: 1.4; 
+}
+h1.questionnaire-title .badge { 
+    font-size: 0.9rem;
+    font-weight: 400; 
+    vertical-align: middle;
+    background-color: rgba(255,255,255,0.15) !important; 
+    color: #fff !important; 
+    border: 1px solid rgba(255,255,255,0.3); 
+}
+
+.questionnaire-title-bar .title-bar-actions { 
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.questionnaire-title-bar .reviewer-control {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem; 
+}
+.questionnaire-title-bar .reviewer-control .form-label { 
+    margin-bottom: 0;
+    font-size: 0.875rem; 
+    font-weight: 500;    
+    color: #fff; 
+    opacity: 0.9;      
+    white-space: nowrap; 
+}
+
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm {
+  width: 12rem; 
+  font-size: 0.875rem; 
+  padding: 0.35rem 0.7rem; 
+  border: 1px solid rgba(255,255,255, 0.3); 
+  border-radius: var(--radius-sm); 
+  background-color: rgba(255,255,255, 0.1); 
+  color: #fff; 
+  line-height: 1.5; 
+  transition: border-color var(--dur-fast) var(--ease-standard), 
+              background-color var(--dur-fast) var(--ease-standard),
+              box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm::placeholder {
+  color: #fff; 
+  opacity: 0.6; 
+}
+
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm:focus,
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm:focus-visible {
+  outline: none;
+  border-color: rgba(255,255,255, 0.7); 
+  background-color: rgba(255,255,255, 0.2); 
+  box-shadow: 0 0 0 2px var(--focus-ring-light); 
+  color: #fff;
+}
+
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm.is-valid {
+  border-color: var(--clr-success); 
+  background-color: rgba(var(--clr-success-rgb), 0.1); 
+}
+.questionnaire-title-bar .reviewer-control input#globalAuthorName.form-control-sm.is-invalid {
+  border-color: var(--clr-danger); 
+   background-color: rgba(var(--clr-danger-rgb), 0.1); 
+}
+
+.questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm{
+  display:inline-flex;
+  align-items:center;
+  gap:0.4rem;
+  padding:0.5rem 1.1rem;
+  font-size:0.875rem;          
+  font-weight:500;
+  border-radius:var(--radius-sm,0.45rem);
+  --btn-bg:        var(--clr-success,#16a34a);        
+  --btn-bg-hover:  color-mix(in srgb,var(--btn-bg) 80%,#000); 
+  --btn-text:      #fff;
+  --btn-border:    color-mix(in srgb,#fff 30%,var(--btn-bg));
+  background:var(--btn-bg);
+  color:var(--btn-text);
+  border:1px solid var(--btn-border);
+  cursor:pointer;
+  transition:
+    background 150ms var(--ease-standard,ease),
+    box-shadow 150ms var(--ease-standard,ease),
+    transform   150ms var(--ease-standard,ease);
+}
+
+.questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm:hover,
+.questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm:focus-visible{
+  background:var(--btn-bg-hover);
+  box-shadow:0 0 0 3px var(--focus-ring-light,rgba(255,255,255,0.4));
+  transform:translateY(-2px);
+  outline:none; 
+}
+
+.questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm:active{
+  transform:none;
+  box-shadow:0 0 0 2px var(--focus-ring-light,rgba(255,255,255,0.3));
+}
+
+.questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm i.fas{
+  color:inherit;       
+  font-size:0.9em;
+  margin-right:0.35rem;
+}
+
+@media (prefers-color-scheme: dark){
+  .questionnaire-title-bar .title-bar-actions .btn-secondary.btn-sm{
+    --btn-bg:       var(--clr-success-dark,#15803d);        
+    --btn-bg-hover: color-mix(in srgb,var(--btn-bg) 85%,black);
+    --btn-border:   color-mix(in srgb,#000 40%,var(--btn-bg));
+  }
+}
+
+.main-content-grid{
+  display:grid;
+  grid-template-columns:minmax(0,3fr) 1fr;      
+  gap:clamp(1rem,4vw,2rem);
+  align-items:start;
+
+  @media (max-width:48rem){ 
+    grid-template-columns:1fr;
+  }
+}
+  
+.form-column{
+  min-inline-size:0;  
+}
+  
+.comment-panel-column{
+  --panel-bg:            #f8fbff;                 
+  --panel-border:        #d6e4ff;                 
+  position:sticky;
+  top: var(--header-h); 
+  height: calc(100vh - var(--header-h)); 
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  gap:1.25rem; 
+  padding:1.5rem;
+  background:var(--panel-bg);
+  border:1px solid var(--panel-border);
+  border-radius: 0; 
+  box-shadow:0 2px 6px rgba(0,61,255,0.05);       
+}
+  
+.comment-panel-column > h4{
+  margin:0;
+  padding-block-end:0.75rem;
+  font-size:clamp(1rem,2.7vw,1.25rem);
+  font-weight:600;
+  color:#1e3a8a;                          
+  border-block-end:1px solid #e3eaff;
+}
+  
+.comment-panel-column .question-identifier{
+  font-size:0.875rem;
+  line-height:1.5;
+  padding:0.6rem 0.9rem;
+  background:#eaf2ff;                     
+  border-radius:var(--radius-sm,0.55rem);
+  word-break:break-word;
+  min-block-size:2.5rem;
+  color:#1e3a8a;
+  opacity:0.95;
+}
+
+.comment-panel-column .question-navigation-controls {
+  display: flex; 
+  align-items: center;
+  gap: 0.75rem; 
+}
+
+.comment-panel-column .question-navigation-controls .btn {
+  background-color: transparent;
+  color: var(--clr-primary);
+  border: 1px solid var(--clr-primary);
+}
+
+.comment-panel-column .question-navigation-controls .btn:hover,
+.comment-panel-column .question-navigation-controls .btn:focus-visible {
+  background-color: var(--clr-primary);
+  color: #fff;
+  border-color: var(--clr-primary);
+}
+
+.comment-panel-column .question-navigation-controls .btn[disabled] {
+  color: var(--clr-grey-300);    
+  border-color: var(--clr-grey-200); 
+  background-color: transparent; 
+}
+
+.comment-panel-column .question-navigation-controls .btn .fas {
+  font-size: 0.85em; 
+}
+  
+.comments-list-panel{
+  flex:1 1 auto;                  
+}
+.comments-list-panel .comment{
+  background:#fff;
+  border:1px solid #d6e4ff;
+  border-radius:var(--radius-sm,0.55rem);
+  padding:0.9rem 1.1rem; 
+  font-size:var(--font-size-base,1rem);
+  margin-block-end:0.75rem;
+  box-shadow:0 1px 3px rgba(0,61,255,0.04);
+  position: relative; /* Noodzakelijk voor absolute positionering van de edit knop */
+}
+.comments-list-panel .comment-author{
+  font-weight:700;
+  font-size:0.9rem;
+  margin-block-end:0.25rem;
+  color:#1e3a8a;
+  padding-right: 3.5rem; /* Ruimte voor de 'Edit' knop, aanpassen indien nodig */
+}
+.comments-list-panel .comment-text{
+  margin-block-end:0.45rem;
+  line-height:var(--line-height-base,1.6);
+  white-space:pre-wrap; 
+}
+.comments-list-panel .comment-meta{
+  font-size:0.8rem;
+  opacity:0.7;
+  color:#1e3a8a;
+}
+
+.comments-list-panel .comment .comment-edit-button { /* Stijl voor de verplaatste Edit knop */
+  position: absolute;
+  top: 0.75rem; /* Iets minder dan padding .comment, voor mooiere uitlijning */
+  right: 0.75rem; /* Iets minder dan padding .comment */
+  font-size: 0.8em; 
+  z-index: 1; 
+  /* btn-link en p-0 klassen uit HTML doen de rest */
+}
+
+.no-comments-panel{
+  font-style:italic;
+  opacity:0.7;
+  padding-block:1rem;
+  color:#1e3a8a;
+}
+
+.comment-panel-column.is-full{ 
+  position:fixed;
+  inset:var(--header-h) 0 0 0;   
+  z-index:1000;
+  border-radius:0; 
+  box-shadow:none; 
+}
+  
+#commentFormPanel textarea{
+  min-block-size:8rem;
+  inline-size:100%;
+  margin-block-end:0.75rem;
+  font-size:var(--font-size-base,1rem);
+  border:1px solid #c7d7ff;
+  border-radius:var(--radius-sm,0.5rem);
+  padding:0.75rem 1rem;
+  resize:vertical;
+  transition:border-color 150ms ease,box-shadow 150ms ease;
+}
+#commentFormPanel textarea:focus-visible{
+  outline:none;
+  border-color:#2563eb;                   
+  box-shadow:0 0 0 3px rgba(37,99,235,0.25);
+}
+#commentFormPanel .d-flex { 
+    gap: 0.5rem; 
+}
+#commentFormPanel .d-flex button { 
+    flex-grow: 1; 
+}
+
+.selected-question-info{
+  font-weight:600;
+  color:#2563eb;                          
+}
+
+/* ----------------------------------------------------------
+ * INTERACTIEVE “VRAAG-CARDS”  (klikbare feeling)
+ * ----------------------------------------------------------*/
+.medblocks-field-wrapper{
+  position:relative;                             
+  overflow:hidden;                               
+  cursor:pointer;
+  padding: 0.75rem 1rem; 
+  border: 1px solid transparent; 
+  border-radius: var(--radius-md); 
+  margin-bottom: 0.5rem; 
+  transition:
+    border-color var(--dur-fast) var(--ease-standard),
+    background-color var(--dur-fast) var(--ease-standard),
+    box-shadow var(--dur-fast) var(--ease-standard),
+    transform var(--dur-fast) var(--ease-standard);
+}
+
+.medblocks-field-wrapper:hover,
+.medblocks-field-wrapper:focus-visible{
+  border-color:var(--clr-primary);
+  background-color:color-mix(in srgb,var(--clr-primary) 5%,transparent);
+  box-shadow:0 4px 10px -2px rgba(29,78,216,.12);
+  transform:translateY(-2px);
+  outline:none;                                  
+}
+
+.medblocks-field-wrapper:active{
+  transform:translateY(0);                       
+  box-shadow:0 2px 6px -2px rgba(29,78,216,.16);
+}
+
+.medblocks-field-wrapper::after{
+  content:'';
+  position:absolute;
+  inset:-50%;                                    
+  background:radial-gradient(circle at center,
+              rgba(29,78,216,.12) 0%,
+              rgba(29,78,216,0) 70%);
+  opacity:0;
+  transform:scale(0);
+  pointer-events: none; 
+  transition:opacity .4s var(--ease-standard),transform .4s var(--ease-standard);
+}
+.medblocks-field-wrapper:active::after{
+  opacity:1;
+  transform:scale(1);
+}
+
+/* AANGEPASTE STIJL VOOR GESELECTEERDE VRAAG (RODE LINKE RAND) */
+.medblocks-field-wrapper.selected-question-highlight {
+  background-color: var(--clr-grey-100) !important; 
+  
+  /* Standaard subtiele rand voor boven, rechts, onder */
+  border-top: 1px solid var(--clr-grey-300) !important;
+  border-right: 1px solid var(--clr-grey-300) !important;
+  border-bottom: 1px solid var(--clr-grey-300) !important;
+  
+  /* Prominente rode linker rand als indicator */
+  border-left: 4px solid var(--clr-danger) !important; 
+
+  /* Pas padding-left aan om de tekst op dezelfde horizontale positie te houden.
+     Originele padding-left = 1rem. Oude border = 1px. Nieuwe border-left = 4px.
+     Nieuwe padding-left = 1rem - (4px - 1px) = 1rem - 3px. */
+  padding-left: calc(1rem - 3px) !important; 
+  /* padding-right, padding-top, padding-bottom blijven zoals in .medblocks-field-wrapper (1rem, 0.75rem, 0.75rem) */
+
+  box-shadow: var(--shadow-xs) !important; 
+  transform: none !important; 
+}
+
+/* Verwijder de ::before regel voor het bolletje, aangezien we nu een border gebruiken */
+/*
+.medblocks-field-wrapper.selected-question-highlight::before {
+  content: "";
+  position: absolute;
+  left: 0.25rem; 
+  top: 50%;    
+  transform: translateY(-50%);
+  width: 0.5rem;  
+  height: 0.5rem; 
+  background-color: var(--clr-danger); 
+  border-radius: 50%; 
+  box-shadow: 0 1px 1px rgba(0,0,0,0.2); 
+  z-index: 1; 
+}
+*/
+/* EINDE AANGEPASTE STIJL VOOR GESELECTEERDE VRAAG */
+
+.content-panel {
+}
+ 
+ /* ==========================================================
+  * MEDIA QUERIES
+  * ==========================================================*/
+ @media(max-width:992px){ 
+    .comment-panel-column {
+      position: static; 
+      top: unset;
+      height: auto; 
+      max-height: 70vh; 
+      margin-top: 1.5rem;
+      width: 100%;
+      border-radius: var(--panel-radius); 
+    }
+ }
+
+ @media(max-width:767px){ 
+    .title-bar{ 
+      flex-direction:column;
+      align-items:flex-start;
+      padding:.9rem 1.2rem
+    }
+    .title-bar__actions{ 
+      width:100%;
+      justify-content:space-between
+    }
+    .section{padding:3rem 0}
+
+    .questionnaire-title-bar {
+    }
+    .questionnaire-title-bar { 
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: .9rem 1rem;
+    }
+    .questionnaire-title-bar .title-bar-actions {
+      width: 100%;
+      flex-direction: column; 
+      align-items: stretch; 
+      gap: .75rem;
+    }
+    h1.questionnaire-title {
+      font-size: 1.4rem;
+    }
+    .questionnaire-title-bar .reviewer-control {
+      width: 100%; 
+    }
+    .questionnaire-title-bar .reviewer-control .form-control-sm { 
+      flex-grow: 1; 
+      max-width: none; 
+      width: auto; 
+    }
+    .questionnaire-title-bar .title-bar-actions .btn { 
+      width: 100%; 
+      justify-content: center; 
+    }
+
+    .main-content-grid { 
+        grid-template-columns: 1fr;
+    }
+    .comment-panel-column {
+        max-height: 60vh; 
+    }
+    .comments-list-panel .comment-author {
+        padding-right: 3rem; /* Behoud ruimte voor edit knop op mobiel */
+    }
+    .comments-list-panel .comment .comment-edit-button {
+        top: 0.6rem; /* Kleinere padding op mobiel misschien? Aanpassen indien nodig. */
+        right: 0.6rem;
+        font-size: 0.75em;
+    }
+    .content-panel.p-3 { 
+      padding: 1rem !important; 
+    }
+ }

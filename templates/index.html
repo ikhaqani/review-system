@@ -1,0 +1,462 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="main-container container-fluid my-3">
+    <div class="questionnaire-title-bar">
+        <h1 class="h3 mb-0 questionnaire-title">{{ questionnaire_for_js.name.value if questionnaire_for_js and questionnaire_for_js.name else 'Vragenlijst' }}
+            {% if questionnaire_for_js and questionnaire_for_js.version %}
+                <span class="badge bg-primary text-white ms-2 fw-normal">v{{ questionnaire_for_js.version }}</span>
+            {% endif %}
+        </h1>
+        <div class="title-bar-actions">
+            <div class="reviewer-control">
+                <label for="globalAuthorName" class="form-label">Naam beoordelaar:</label>
+                <input id="globalAuthorName" class="form-control form-control-sm" placeholder="Uw naam...">
+            </div>
+            <a href="{{ url_for('main.export_comments_csv') }}" class="btn btn-secondary btn-sm" target="_blank">
+                <i class="fas fa-download"></i> Exporteer Commentaar (CSV)
+            </a>
+        </div>
+    </div>
+
+    <div class="content-panel bg-white p-3 rounded-bottom shadow-sm">
+      {% if error_message %}
+        <div class="alert alert-danger m-3">Fout: {{ error_message }}</div>
+      {% elif web_template_for_mb_js %}
+        <div class="main-content-grid">
+            <div class="form-column" id="formColumn">
+                <div id="medblocks-form-container" class="mb-3">
+                    <mb-auto-form id="mijnOpenEHRFormulier" data-testid="mijn-formulier"></mb-auto-form>
+                </div>
+            </div>
+
+            <div class="comment-panel-column" id="commentPanel">
+                <h4>Opmerkingen</h4>
+                <div class="question-identifier" id="currentQuestionPathDisplay">Selecteer een vraag uit het formulier.</div>
+                
+                <div class="question-navigation-controls my-3" id="questionNavigationControls" style="display: none;">
+                    <button id="prevQuestionBtn" class="btn btn-sm btn-outline-secondary me-2" disabled>
+                        <i class="fas fa-chevron-left"></i> Vorige
+                    </button>
+                    <button id="nextQuestionBtn" class="btn btn-sm btn-outline-secondary" disabled>
+                        Volgende <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <div class="comments-list-panel" id="commentsListPanel"></div>
+                
+                <h4 id="commentFormTitle">Uw bericht:</h4>
+                <form id="commentFormPanel">
+                    <input type="hidden" id="commentElementPathInput" name="element_path" value="">
+                    <input type="hidden" id="commentAuthorNameInput" name="author_name" class="dynamic-author-name-input" value="">
+                    <textarea id="commentTextPanelInput" name="comment_text" class="form-control form-control-sm" rows="3" placeholder="Typ een bericht..." required disabled></textarea>
+                    <div class="d-flex gap-2 mt-2">
+                      <button type="submit" class="btn btn-primary btn-sm" id="commentSubmitButton" disabled>Comment</button>
+                      <button type="button" class="btn btn-secondary btn-sm d-none" id="cancelEditButton">Annuleer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      {% else %}
+        <div class="alert alert-danger m-3">
+            Kan de vragenlijst niet laden.
+            De formulierdefinitie (<code>web_template_for_mb_js</code>) is ongeldig of ontbreekt.
+        </div>
+      {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %}
+  <script>
+  /* Globale naam synchronisatie */
+  document.addEventListener('DOMContentLoaded', () => {
+    const globalNameInput = document.getElementById('globalAuthorName');
+    const storageKey = 'reviewerName';
+    function syncGlobalAuthorName() {
+      const authorName = globalNameInput.value.trim() || 'Anoniem';
+      localStorage.setItem(storageKey, authorName);
+      const commentAuthorInput = document.getElementById('commentAuthorNameInput');
+      if (commentAuthorInput) commentAuthorInput.value = authorName;
+    }
+    if (globalNameInput) {
+      globalNameInput.value = localStorage.getItem(storageKey) || '';
+      syncGlobalAuthorName();
+      globalNameInput.addEventListener('input', syncGlobalAuthorName);
+    }
+  });
+  </script>
+
+  <script type="module">
+    /* Element references */
+    const formElement = document.getElementById('mijnOpenEHRFormulier');
+    const formColumn = document.getElementById('formColumn');
+    const currentQuestionPathDisplay = document.getElementById('currentQuestionPathDisplay');
+    const commentsListPanelDiv = document.getElementById('commentsListPanel');
+    const commentFormPanel = document.getElementById('commentFormPanel');
+    const commentElementPathInput = document.getElementById('commentElementPathInput');
+    const commentAuthorNameInput = document.getElementById('commentAuthorNameInput');
+    const commentTextPanelInput = document.getElementById('commentTextPanelInput');
+    const commentSubmitButton = document.getElementById('commentSubmitButton');
+    const cancelEditButton = document.getElementById('cancelEditButton');
+    const commentFormTitle = document.getElementById('commentFormTitle');
+    const questionNavigationControls = document.getElementById('questionNavigationControls');
+    const prevQuestionBtn = document.getElementById('prevQuestionBtn');
+    const nextQuestionBtn = document.getElementById('nextQuestionBtn');
+
+    /* State vars */
+    let currentSelectedAqlPath = null;
+    let lastSelectedFieldWrapper = null;
+    let editingCommentId = null;
+    let allQuestionFieldWrappers = [];
+    let currentQuestionIndex = -1;
+
+    // Opslag voor originele stijlen indien nodig, of we vertrouwen op CSS voor de default.
+    // Voor nu zetten we inline stijlen terug naar '' om CSS over te laten nemen.
+
+    /* Helper functies */
+    const storageKey = 'reviewerName';
+    function currentAuthor() { return localStorage.getItem(storageKey) || 'Anoniem'; }
+    function isAuthorsOwn(comment) { return comment.author_name === currentAuthor(); }
+
+    // Helper function to decode HTML entities
+    function decodeHtmlEntities(encodedString) {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = encodedString;
+        return textarea.value;
+    }
+
+    function getQuestionLabelInfo(fieldWrapper) {
+        if (!fieldWrapper) return null;
+        const pathElement = fieldWrapper.querySelector('[path]');
+        if (!pathElement) return null;
+        const aqlPath = pathElement.getAttribute('path');
+        let bestLabel = null;
+        if (pathElement.label && pathElement.label.trim() !== '') bestLabel = pathElement.label.trim();
+        else if (pathElement.getAttribute('label') && pathElement.getAttribute('label').trim() !== '') bestLabel = pathElement.getAttribute('label').trim();
+        else if (pathElement.schema && pathElement.schema.label && pathElement.schema.label.trim() !== '') bestLabel = pathElement.schema.label.trim();
+        else if (pathElement.shadowRoot) {
+            const labelInShadow = pathElement.shadowRoot.querySelector('label');
+            if (labelInShadow && labelInShadow.textContent && labelInShadow.textContent.trim() !== '') bestLabel = labelInShadow.textContent.trim();
+        }
+        else if (pathElement.id && pathElement.id !== aqlPath && !pathElement.id.includes('/') && !pathElement.id.includes('_')) {
+            bestLabel = pathElement.id;
+        }
+        const isFriendly = !!(bestLabel && bestLabel !== aqlPath);
+        const displayLabel = bestLabel || aqlPath;
+        return { displayLabel, aqlPath, isFriendly };
+    }
+
+    function createCommentHTML(comment) {
+      const text = comment.comment_text ? comment.comment_text.replace(/\n/g, '<br>') : 'Geen tekst';
+      let metaDate;
+      if (comment.created_at) {
+        try { metaDate = new Date(comment.created_at).toLocaleString('nl-NL', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Amsterdam' }); }
+        catch (e) { metaDate = comment.created_at; }
+      } else { metaDate = 'Zojuist'; }
+      const author = comment.author_name || 'Anoniem';
+      const editBtnHTML = isAuthorsOwn(comment) ? `<button class="btn btn-sm btn-link p-0 edit-comment-btn comment-edit-button" data-comment-id="${comment.id}">Edit</button>` : '';
+      return `
+        <div class="comment" data-comment-id="${comment.id}">
+          ${editBtnHTML} 
+          <div class="comment-author">${author}</div>
+          <div class="comment-text">${text}</div>
+          <div class="comment-meta">${metaDate}</div>
+        </div>`;
+    }
+
+    function resetForm() {
+      editingCommentId = null;
+      commentTextPanelInput.value = '';
+      commentSubmitButton.textContent = 'Comment';
+      cancelEditButton.classList.add('d-none');
+      commentFormTitle.textContent = 'Uw bericht:';
+    }
+
+    function updateNavigationButtons() {
+        if (!prevQuestionBtn || !nextQuestionBtn || !questionNavigationControls) return;
+        if (allQuestionFieldWrappers.length > 0 && currentQuestionIndex !== -1) {
+            questionNavigationControls.style.display = 'flex';
+            let hasFriendlyPrev = false;
+            for (let i = currentQuestionIndex - 1; i >= 0; i--) {
+                const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                if (info && info.isFriendly) { hasFriendlyPrev = true; break; }
+            }
+            prevQuestionBtn.disabled = !hasFriendlyPrev;
+            let hasFriendlyNext = false;
+            for (let i = currentQuestionIndex + 1; i < allQuestionFieldWrappers.length; i++) {
+                const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                if (info && info.isFriendly) { hasFriendlyNext = true; break; }
+            }
+            nextQuestionBtn.disabled = !hasFriendlyNext;
+        } else if (allQuestionFieldWrappers.length > 0 && currentQuestionIndex === -1) {
+            questionNavigationControls.style.display = 'flex';
+            prevQuestionBtn.disabled = true;
+            let hasAnyFriendly = false;
+            for (let i = 0; i < allQuestionFieldWrappers.length; i++) {
+                const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                if (info && info.isFriendly) { hasAnyFriendly = true; break; }
+            }
+            nextQuestionBtn.disabled = !hasAnyFriendly;
+        } else {
+            questionNavigationControls.style.display = 'none';
+        }
+    }
+    
+    async function loadCommentsForPath(aqlPath, questionDisplayLabel) {
+      if (!aqlPath) {
+        currentQuestionPathDisplay.textContent = 'Selecteer een vraag uit het formulier.';
+        commentsListPanelDiv.innerHTML = '';
+        commentElementPathInput.value = '';
+        commentTextPanelInput.disabled = true;
+        commentSubmitButton.disabled = true;
+        resetForm();
+        currentSelectedAqlPath = null;
+        updateNavigationButtons();
+        return;
+      }
+      currentSelectedAqlPath = aqlPath;
+      currentQuestionPathDisplay.innerHTML = `Opmerkingen voor: <span class="selected-question-info">${questionDisplayLabel}</span>`;
+      commentElementPathInput.value = aqlPath;
+      commentTextPanelInput.disabled = false;
+      commentSubmitButton.disabled = false;
+      resetForm();
+      commentsListPanelDiv.innerHTML = '<p class="no-comments-panel">Laden...</p>';
+      try {
+        const encodedPath = encodeURIComponent(aqlPath);
+        const response = await fetch(`/api/comments/get/${encodedPath}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const comments = await response.json();
+        commentsListPanelDiv.innerHTML = comments.length ? comments.map(createCommentHTML).join('') : '<p class="no-comments-panel">Nog geen opmerkingen voor dit element.</p>';
+      } catch (error) {
+        console.error('Fout bij ophalen commentaren:', error);
+        commentsListPanelDiv.innerHTML = '<p class="text-danger">Kon opmerkingen niet laden.</p>';
+      }
+      updateNavigationButtons();
+    }
+
+    function selectQuestionByWrapper(fieldWrapper, isNavigationClick = false) {
+        if (!fieldWrapper) return;
+        const labelInfo = getQuestionLabelInfo(fieldWrapper);
+        if (!labelInfo || !labelInfo.aqlPath) return;
+
+        // Vorige selectie ongedaan maken (visueel)
+        if (lastSelectedFieldWrapper && lastSelectedFieldWrapper !== fieldWrapper) {
+            lastSelectedFieldWrapper.classList.remove('selected-question-highlight');
+            // Reset inline stijlen voor de vorig geselecteerde wrapper
+            lastSelectedFieldWrapper.style.borderLeft = ''; 
+            lastSelectedFieldWrapper.style.backgroundColor = '';
+            lastSelectedFieldWrapper.style.paddingLeft = ''; // Reset naar CSS default
+        }
+
+        // Nieuwe selectie toepassen (visueel)
+        fieldWrapper.classList.add('selected-question-highlight');
+        
+        // ** HIER WORDEN STIJLEN DIRECT VIA JAVASCRIPT TOEGEPAST **
+        try {
+            const dangerColor = getComputedStyle(document.documentElement).getPropertyValue('--clr-danger').trim() || '#DC2626';
+            const grey100Color = getComputedStyle(document.documentElement).getPropertyValue('--clr-grey-100').trim() || '#F8FAFC';
+
+            fieldWrapper.style.backgroundColor = grey100Color;
+            fieldWrapper.style.borderLeft = `4px solid ${dangerColor}`;
+            // Pas paddingLeft aan om tekst op dezelfde plek te houden (1rem is originele paddingLeft uit CSS voor .medblocks-field-wrapper)
+            // De originele border was 1px (transparant). Nieuw is 4px. Verschil is 3px.
+            fieldWrapper.style.paddingLeft = `calc(1rem - 3px)`; 
+            
+            // Zorg dat overige borders (top, right, bottom) hun normale stijl behouden of een subtiele grijze rand krijgen
+            // Dit is lastiger direct via JS als het complexer is dan een simpele '1px solid #ccc'.
+            // De CSS voor .medblocks-field-wrapper.selected-question-highlight moet nu leeg zijn qua border/bg.
+            // Of we kunnen hier ook top/right/bottom border instellen als dat nodig is.
+            // Voor nu vertrouwen we erop dat de basis CSS voor .medblocks-field-wrapper de andere randen afhandelt.
+            // Als dat niet zo is, kunnen we hier toevoegen:
+            // fieldWrapper.style.borderTop = '1px solid #E2E8F0'; // --clr-grey-300
+            // fieldWrapper.style.borderRight = '1px solid #E2E8F0';
+            // fieldWrapper.style.borderBottom = '1px solid #E2E8F0';
+
+        } catch(e) {
+            console.error("Fout bij toepassen JS stijlen:", e);
+            // Fallback naar alleen class toevoegen als CSS variabelen niet werken
+        }
+
+        lastSelectedFieldWrapper = fieldWrapper;
+        currentQuestionIndex = allQuestionFieldWrappers.indexOf(fieldWrapper);
+        
+        loadCommentsForPath(labelInfo.aqlPath, labelInfo.displayLabel);
+        
+        if (!isNavigationClick && !commentTextPanelInput.disabled) {
+            commentTextPanelInput.focus();
+        }
+    }
+    
+    if (formColumn) {
+      formColumn.addEventListener('click', (event) => {
+        const path = event.composedPath && event.composedPath();
+        const fieldWrapper = path ? path.find(p => p.classList && p.classList.contains('medblocks-field-wrapper')) : event.target.closest('.medblocks-field-wrapper');
+        if (fieldWrapper) selectQuestionByWrapper(fieldWrapper, false);
+      });
+    }
+
+    if (commentFormPanel) {
+      commentFormPanel.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const elementPath = commentElementPathInput.value;
+        const commentText = commentTextPanelInput.value.trim();
+        const authorName = currentAuthor();
+        if (!elementPath || !commentText) { return; }
+        const formData = new URLSearchParams();
+        formData.append('element_path', elementPath);
+        formData.append('comment_text', commentText);
+        formData.append('author_name', authorName);
+        try {
+          let response, result;
+          if (editingCommentId) response = await fetch(`/api/comments/update/${editingCommentId}`, { method: 'PUT', body: formData });
+          else response = await fetch('/api/comments/add', { method: 'POST', body: formData });
+          result = await response.json();
+          if (response.ok && result.status === 'success') {
+            resetForm();
+            const currentWrapper = allQuestionFieldWrappers[currentQuestionIndex];
+            if (currentWrapper) {
+                const info = getQuestionLabelInfo(currentWrapper);
+                if (info) loadCommentsForPath(info.aqlPath, info.displayLabel);
+            } else if(currentSelectedAqlPath) {
+                 loadCommentsForPath(currentSelectedAqlPath, currentSelectedAqlPath);
+            }
+          } else throw new Error(result.message || 'Onbekende serverfout');
+        } catch (error) { console.error('Fout bij opmerking:', error); alert(`Fout: ${error.message}`); }
+      });
+    }
+
+    if (commentsListPanelDiv) {
+        commentsListPanelDiv.addEventListener('click', (event) => { 
+            const editBtn = event.target.closest('.edit-comment-btn');
+            if (!editBtn) return;
+            const commentDiv = editBtn.closest('.comment');
+            if (!commentDiv) return;
+
+            editingCommentId = editBtn.dataset.commentId;
+
+            const commentTextElement = commentDiv.querySelector('.comment-text');
+            if (!commentTextElement) {
+                console.error('Comment text element not found for editing.');
+                return;
+            }
+
+            // 1. Get the HTML content from the display
+            const commentHTMLFromDisplay = commentTextElement.innerHTML;
+
+            // 2. Convert <br> tags (and variants like <br />, <br/>) back to newline characters
+            const textWithNewlines = commentHTMLFromDisplay.replace(/<br\s*\/?>/gi, '\n');
+
+            // 3. Decode any HTML entities to get the plain text representation
+            const plainTextForEditing = decodeHtmlEntities(textWithNewlines);
+            
+            commentTextPanelInput.value = plainTextForEditing;
+            commentTextPanelInput.focus();
+            commentSubmitButton.textContent = 'Opslaan';
+            cancelEditButton.classList.remove('d-none');
+            commentFormTitle.textContent = 'Bericht bewerken:';
+        });
+    }
+
+    if (cancelEditButton) cancelEditButton.addEventListener('click', () => resetForm());
+
+    if (prevQuestionBtn) {
+        prevQuestionBtn.addEventListener('click', () => {
+            for (let i = currentQuestionIndex - 1; i >= 0; i--) {
+                const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                if (info && info.isFriendly) {
+                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true);
+                    return;
+                }
+            }
+        });
+    }
+    if (nextQuestionBtn) {
+        nextQuestionBtn.addEventListener('click', () => {
+            for (let i = currentQuestionIndex + 1; i < allQuestionFieldWrappers.length; i++) {
+                const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                if (info && info.isFriendly) {
+                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true);
+                    return;
+                }
+            }
+        });
+    }
+
+    function initializeFormAndQuestions() {
+        if (!formElement) { updateNavigationButtons(); return; }
+        setTimeout(() => {
+            let collectedWrappers = [];
+            const lightDomWrappers = Array.from(formElement.querySelectorAll('.medblocks-field-wrapper'));
+            if(lightDomWrappers.length > 0) collectedWrappers.push(...lightDomWrappers);
+            if (formElement.shadowRoot) {
+                const shadowDomWrappers = Array.from(formElement.shadowRoot.querySelectorAll('.medblocks-field-wrapper'));
+                if(shadowDomWrappers.length > 0) collectedWrappers.push(...shadowDomWrappers);
+            }
+            allQuestionFieldWrappers = [...new Set(collectedWrappers)].filter(wrapper => wrapper.querySelector('[path]'));
+            if (allQuestionFieldWrappers.length > 0) {
+                let firstFriendlyIndex = -1;
+                for (let i = 0; i < allQuestionFieldWrappers.length; i++) {
+                    const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
+                    if (info && info.isFriendly) { firstFriendlyIndex = i; break; }
+                }
+                if (firstFriendlyIndex !== -1) {
+                    selectQuestionByWrapper(allQuestionFieldWrappers[firstFriendlyIndex], true);
+                } else if (allQuestionFieldWrappers.length > 0) {
+                    selectQuestionByWrapper(allQuestionFieldWrappers[0], true);
+                } else {
+                     currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
+                }
+            } else {
+                currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
+            }
+            updateNavigationButtons();
+        }, 500); 
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      {% if web_template_for_mb_js %}
+        try {
+          const webTemplateData = {{ web_template_for_mb_js|tojson }};
+          if (formElement && webTemplateData && typeof webTemplateData === 'object' && Object.keys(webTemplateData).length > 0) {
+            const addWrappersToMedblocksElements = (rootNode) => {
+              if (!rootNode) return;
+              rootNode.querySelectorAll('[path]').forEach(el => {
+                if (el.parentNode && !el.parentNode.classList.contains('medblocks-field-wrapper')) {
+                  const wrapper = document.createElement('div');
+                  wrapper.className = 'medblocks-field-wrapper';
+                  el.parentNode.insertBefore(wrapper, el);
+                  wrapper.appendChild(el);
+                }
+              });
+            };
+            const observer = new MutationObserver(() => {
+                addWrappersToMedblocksElements(formElement); 
+                if (formElement.shadowRoot) addWrappersToMedblocksElements(formElement.shadowRoot);
+            });
+            observer.observe(formElement, { childList: true, subtree: true });
+            if (formElement.shadowRoot) observer.observe(formElement.shadowRoot, { childList: true, subtree: true });
+            
+            setTimeout(() => {
+              formElement.webTemplate = webTemplateData;
+              addWrappersToMedblocksElements(formElement);
+              if (formElement.shadowRoot) addWrappersToMedblocksElements(formElement.shadowRoot);
+              initializeFormAndQuestions();
+            }, 100); 
+          } else { 
+            console.error('Initialisatiefout: formElement of webTemplateData ontbreekt/is ongeldig.');
+            currentQuestionPathDisplay.textContent = 'Fout bij laden formulierdefinitie.';
+            updateNavigationButtons();
+          }
+        } catch (e) { 
+            console.error('Algemene JavaScript Fout in Medblocks initialisatie:', e);
+            currentQuestionPathDisplay.textContent = 'JavaScript initialisatiefout.';
+            updateNavigationButtons();
+        }
+      {% else %} 
+        console.warn('Medblocks UI kan niet initialiseren: web_template_for_mb_js ontbreekt.');
+        currentQuestionPathDisplay.textContent = 'Formulierdefinitie (web_template_for_mb_js) ontbreekt.';
+        updateNavigationButtons();
+      {% endif %}
+    });
+  </script>
+{% endblock %}
