@@ -110,15 +110,11 @@
     let allQuestionFieldWrappers = [];
     let currentQuestionIndex = -1;
 
-    // Opslag voor originele stijlen indien nodig, of we vertrouwen op CSS voor de default.
-    // Voor nu zetten we inline stijlen terug naar '' om CSS over te laten nemen.
-
     /* Helper functies */
     const storageKey = 'reviewerName';
     function currentAuthor() { return localStorage.getItem(storageKey) || 'Anoniem'; }
     function isAuthorsOwn(comment) { return comment.author_name === currentAuthor(); }
 
-    // Helper function to decode HTML entities
     function decodeHtmlEntities(encodedString) {
         const textarea = document.createElement('textarea');
         textarea.innerHTML = encodedString;
@@ -207,8 +203,12 @@
         currentQuestionPathDisplay.textContent = 'Selecteer een vraag uit het formulier.';
         commentsListPanelDiv.innerHTML = '';
         commentElementPathInput.value = '';
-        commentTextPanelInput.disabled = true;
-        commentSubmitButton.disabled = true;
+        if (commentTextPanelInput) {
+            commentTextPanelInput.disabled = true;
+        }
+        if (commentSubmitButton) {
+            commentSubmitButton.disabled = true;
+        }
         resetForm();
         currentSelectedAqlPath = null;
         updateNavigationButtons();
@@ -217,8 +217,12 @@
       currentSelectedAqlPath = aqlPath;
       currentQuestionPathDisplay.innerHTML = `Opmerkingen voor: <span class="selected-question-info">${questionDisplayLabel}</span>`;
       commentElementPathInput.value = aqlPath;
-      commentTextPanelInput.disabled = false;
-      commentSubmitButton.disabled = false;
+      if (commentTextPanelInput) {
+        commentTextPanelInput.disabled = false;
+      }
+      if (commentSubmitButton) {
+        commentSubmitButton.disabled = false;
+      }
       resetForm();
       commentsListPanelDiv.innerHTML = '<p class="no-comments-panel">Laden...</p>';
       try {
@@ -234,47 +238,94 @@
       updateNavigationButtons();
     }
 
-    function selectQuestionByWrapper(fieldWrapper, isNavigationClick = false) {
+    const isFocusableCandidate = (el) => {
+        if (!el || typeof el.focus !== 'function') return false;
+        if (el.disabled || el.hasAttribute('disabled')) return false;
+        if (el.matches && el.matches('[type="hidden"]')) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return false;
+        return el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0;
+    };
+
+    function focusFirstInputElement(fieldWrapper) {
+        if (!fieldWrapper) return;
+
+        const standardInputsSelector = 'input:not([type="hidden"]), textarea, select, [contenteditable="true"]:not([contenteditable="false"])';
+        let focusableElement = fieldWrapper.querySelector(standardInputsSelector);
+
+        if (isFocusableCandidate(focusableElement)) {
+            focusableElement.focus({ preventScroll: true }); // preventScroll kan helpen bij ongewenst scrollen
+            console.log('[focusFirstInputElement] Focused standard input:', focusableElement);
+            return;
+        }
+
+        const pathElement = fieldWrapper.querySelector('[path]');
+        if (pathElement) {
+            if (isFocusableCandidate(pathElement)) {
+                pathElement.focus({ preventScroll: true });
+                console.log('[focusFirstInputElement] Focused pathElement itself:', pathElement);
+                return;
+            }
+            if (pathElement.shadowRoot) {
+                focusableElement = pathElement.shadowRoot.querySelector(standardInputsSelector);
+                if (isFocusableCandidate(focusableElement)) {
+                    focusableElement.focus({ preventScroll: true });
+                    console.log('[focusFirstInputElement] Focused standard input in shadow DOM of pathElement:', focusableElement);
+                    return;
+                }
+                const allFocusableInShadow = pathElement.shadowRoot.querySelectorAll('[tabindex]:not([tabindex="-1"]), button, a[href]');
+                for (const el of allFocusableInShadow) {
+                    if (isFocusableCandidate(el)) {
+                        el.focus({ preventScroll: true });
+                        console.log('[focusFirstInputElement] Focused generic focusable in shadow DOM of pathElement:', el);
+                        return;
+                    }
+                }
+            }
+        }
+        
+        const medblocksInteractiveTags = ['mb-input', 'mb-select', 'mb-textarea', 'mb-date', 'mb-checkbox', 'mb-radio', 'mb-quantity', 'mb-search-select', 'mb-search', 'mb-code-select', 'mb-input-multiple'];
+        for (const tagName of medblocksInteractiveTags) {
+            const mbElement = fieldWrapper.querySelector(tagName);
+            if (isFocusableCandidate(mbElement)) {
+                mbElement.focus({ preventScroll: true });
+                console.log('[focusFirstInputElement] Focused MedBlocks component by tag:', mbElement);
+                return;
+            }
+            if (mbElement && mbElement.shadowRoot) {
+                focusableElement = mbElement.shadowRoot.querySelector(standardInputsSelector);
+                if (isFocusableCandidate(focusableElement)) {
+                    focusableElement.focus({ preventScroll: true });
+                    console.log('[focusFirstInputElement] Focused standard input in shadow DOM of MedBlocks component by tag:', focusableElement);
+                    return;
+                }
+            }
+        }
+        console.log('[focusFirstInputElement] No suitable element found to focus within:', fieldWrapper);
+    }
+
+
+    function selectQuestionByWrapper(fieldWrapper, isNavigationClick = false, clickTarget = null) {
         if (!fieldWrapper) return;
         const labelInfo = getQuestionLabelInfo(fieldWrapper);
         if (!labelInfo || !labelInfo.aqlPath) return;
 
-        // Vorige selectie ongedaan maken (visueel)
         if (lastSelectedFieldWrapper && lastSelectedFieldWrapper !== fieldWrapper) {
             lastSelectedFieldWrapper.classList.remove('selected-question-highlight');
-            // Reset inline stijlen voor de vorig geselecteerde wrapper
             lastSelectedFieldWrapper.style.borderLeft = ''; 
             lastSelectedFieldWrapper.style.backgroundColor = '';
-            lastSelectedFieldWrapper.style.paddingLeft = ''; // Reset naar CSS default
+            lastSelectedFieldWrapper.style.paddingLeft = '';
         }
 
-        // Nieuwe selectie toepassen (visueel)
         fieldWrapper.classList.add('selected-question-highlight');
-        
-        // ** HIER WORDEN STIJLEN DIRECT VIA JAVASCRIPT TOEGEPAST **
         try {
             const dangerColor = getComputedStyle(document.documentElement).getPropertyValue('--clr-danger').trim() || '#DC2626';
             const grey100Color = getComputedStyle(document.documentElement).getPropertyValue('--clr-grey-100').trim() || '#F8FAFC';
-
             fieldWrapper.style.backgroundColor = grey100Color;
             fieldWrapper.style.borderLeft = `4px solid ${dangerColor}`;
-            // Pas paddingLeft aan om tekst op dezelfde plek te houden (1rem is originele paddingLeft uit CSS voor .medblocks-field-wrapper)
-            // De originele border was 1px (transparant). Nieuw is 4px. Verschil is 3px.
-            fieldWrapper.style.paddingLeft = `calc(1rem - 3px)`; 
-            
-            // Zorg dat overige borders (top, right, bottom) hun normale stijl behouden of een subtiele grijze rand krijgen
-            // Dit is lastiger direct via JS als het complexer is dan een simpele '1px solid #ccc'.
-            // De CSS voor .medblocks-field-wrapper.selected-question-highlight moet nu leeg zijn qua border/bg.
-            // Of we kunnen hier ook top/right/bottom border instellen als dat nodig is.
-            // Voor nu vertrouwen we erop dat de basis CSS voor .medblocks-field-wrapper de andere randen afhandelt.
-            // Als dat niet zo is, kunnen we hier toevoegen:
-            // fieldWrapper.style.borderTop = '1px solid #E2E8F0'; // --clr-grey-300
-            // fieldWrapper.style.borderRight = '1px solid #E2E8F0';
-            // fieldWrapper.style.borderBottom = '1px solid #E2E8F0';
-
+            fieldWrapper.style.paddingLeft = `calc(1rem - 3px)`;
         } catch(e) {
-            console.error("Fout bij toepassen JS stijlen:", e);
-            // Fallback naar alleen class toevoegen als CSS variabelen niet werken
+            console.error("Fout bij toepassen JS (highlight) stijlen:", e);
         }
 
         lastSelectedFieldWrapper = fieldWrapper;
@@ -282,16 +333,43 @@
         
         loadCommentsForPath(labelInfo.aqlPath, labelInfo.displayLabel);
         
-        if (!isNavigationClick && !commentTextPanelInput.disabled) {
-            commentTextPanelInput.focus();
+        if (isNavigationClick) {
+            // Voor navigatie, probeer het eerste invoerveld in de vraag te focussen
+            focusFirstInputElement(fieldWrapper);
+        } else { 
+            // Voor directe kliks, bepaal of het commentaarveld of het aangeklikte veld focus krijgt
+            if (commentTextPanelInput && !commentTextPanelInput.disabled) {
+                let allowCommentFocus = true; 
+                if (clickTarget) {
+                    if (typeof clickTarget.focus === 'function' && clickTarget !== document.body) {
+                        allowCommentFocus = false;
+                    } else if (clickTarget.matches && clickTarget.matches('label')) {
+                        allowCommentFocus = false;
+                    } else if (clickTarget.isContentEditable) {
+                        allowCommentFocus = false;
+                    } else if (clickTarget.closest && clickTarget.closest('button, a[href], [contenteditable="true"], input, textarea, select')) {
+                        allowCommentFocus = false;
+                    }
+                }
+                if (allowCommentFocus) {
+                    commentTextPanelInput.focus();
+                }
+            }
         }
     }
     
     if (formColumn) {
       formColumn.addEventListener('click', (event) => {
-        const path = event.composedPath && event.composedPath();
-        const fieldWrapper = path ? path.find(p => p.classList && p.classList.contains('medblocks-field-wrapper')) : event.target.closest('.medblocks-field-wrapper');
-        if (fieldWrapper) selectQuestionByWrapper(fieldWrapper, false);
+        const composedPathArray = event.composedPath && event.composedPath();
+        const clickTarget = composedPathArray && composedPathArray.length > 0 ? composedPathArray[0] : event.target;
+        
+        const fieldWrapper = composedPathArray 
+                             ? composedPathArray.find(p => p.classList && p.classList.contains('medblocks-field-wrapper')) 
+                             : (clickTarget ? clickTarget.closest('.medblocks-field-wrapper') : null);
+
+        if (fieldWrapper) {
+            selectQuestionByWrapper(fieldWrapper, false, clickTarget);
+        }
       });
     }
 
@@ -318,7 +396,9 @@
                 const info = getQuestionLabelInfo(currentWrapper);
                 if (info) loadCommentsForPath(info.aqlPath, info.displayLabel);
             } else if(currentSelectedAqlPath) {
-                 loadCommentsForPath(currentSelectedAqlPath, currentSelectedAqlPath);
+                 const pathDisplayElement = currentQuestionPathDisplay.querySelector('.selected-question-info');
+                 const displayLabel = pathDisplayElement ? pathDisplayElement.textContent : currentSelectedAqlPath;
+                 loadCommentsForPath(currentSelectedAqlPath, displayLabel);
             }
           } else throw new Error(result.message || 'Onbekende serverfout');
         } catch (error) { console.error('Fout bij opmerking:', error); alert(`Fout: ${error.message}`); }
@@ -339,14 +419,8 @@
                 console.error('Comment text element not found for editing.');
                 return;
             }
-
-            // 1. Get the HTML content from the display
             const commentHTMLFromDisplay = commentTextElement.innerHTML;
-
-            // 2. Convert <br> tags (and variants like <br />, <br/>) back to newline characters
             const textWithNewlines = commentHTMLFromDisplay.replace(/<br\s*\/?>/gi, '\n');
-
-            // 3. Decode any HTML entities to get the plain text representation
             const plainTextForEditing = decodeHtmlEntities(textWithNewlines);
             
             commentTextPanelInput.value = plainTextForEditing;
@@ -364,7 +438,7 @@
             for (let i = currentQuestionIndex - 1; i >= 0; i--) {
                 const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
                 if (info && info.isFriendly) {
-                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true);
+                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true, null);
                     return;
                 }
             }
@@ -375,7 +449,7 @@
             for (let i = currentQuestionIndex + 1; i < allQuestionFieldWrappers.length; i++) {
                 const info = getQuestionLabelInfo(allQuestionFieldWrappers[i]);
                 if (info && info.isFriendly) {
-                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true);
+                    selectQuestionByWrapper(allQuestionFieldWrappers[i], true, null);
                     return;
                 }
             }
@@ -400,14 +474,14 @@
                     if (info && info.isFriendly) { firstFriendlyIndex = i; break; }
                 }
                 if (firstFriendlyIndex !== -1) {
-                    selectQuestionByWrapper(allQuestionFieldWrappers[firstFriendlyIndex], true);
+                    selectQuestionByWrapper(allQuestionFieldWrappers[firstFriendlyIndex], true, null); 
                 } else if (allQuestionFieldWrappers.length > 0) {
-                    selectQuestionByWrapper(allQuestionFieldWrappers[0], true);
+                    selectQuestionByWrapper(allQuestionFieldWrappers[0], true, null);
                 } else {
-                     currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
+                     if(currentQuestionPathDisplay) currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
                 }
             } else {
-                currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
+                if(currentQuestionPathDisplay) currentQuestionPathDisplay.textContent = 'Geen vragen in het formulier gevonden.';
             }
             updateNavigationButtons();
         }, 500); 
@@ -421,11 +495,18 @@
             const addWrappersToMedblocksElements = (rootNode) => {
               if (!rootNode) return;
               rootNode.querySelectorAll('[path]').forEach(el => {
-                if (el.parentNode && !el.parentNode.classList.contains('medblocks-field-wrapper')) {
-                  const wrapper = document.createElement('div');
-                  wrapper.className = 'medblocks-field-wrapper';
-                  el.parentNode.insertBefore(wrapper, el);
-                  wrapper.appendChild(el);
+                const parent = el.parentElement;
+                if (parent && !parent.classList.contains('medblocks-field-wrapper')) {
+                    // Only wrap elements that are likely individual fields, not containers like mb-form or mb-group itself
+                    // unless the mb-group is empty but has a label (might be a section header to comment on)
+                    if (el.tagName.toLowerCase() !== 'mb-form' && 
+                        (el.tagName.toLowerCase() !== 'mb-group' || (el.tagName.toLowerCase() === 'mb-group' && el.children.length === 0 && el.hasAttribute('label'))) && 
+                        !el.querySelector('[path]')) { // Avoid wrapping elements that themselves contain other path elements
+                         const wrapper = document.createElement('div');
+                         wrapper.className = 'medblocks-field-wrapper';
+                         parent.insertBefore(wrapper, el);
+                         wrapper.appendChild(el);
+                    }
                 }
               });
             };
@@ -444,17 +525,17 @@
             }, 100); 
           } else { 
             console.error('Initialisatiefout: formElement of webTemplateData ontbreekt/is ongeldig.');
-            currentQuestionPathDisplay.textContent = 'Fout bij laden formulierdefinitie.';
+            if(currentQuestionPathDisplay) currentQuestionPathDisplay.textContent = 'Fout bij laden formulierdefinitie.';
             updateNavigationButtons();
           }
         } catch (e) { 
             console.error('Algemene JavaScript Fout in Medblocks initialisatie:', e);
-            currentQuestionPathDisplay.textContent = 'JavaScript initialisatiefout.';
+            if(currentQuestionPathDisplay) currentQuestionPathDisplay.textContent = 'JavaScript initialisatiefout.';
             updateNavigationButtons();
         }
       {% else %} 
         console.warn('Medblocks UI kan niet initialiseren: web_template_for_mb_js ontbreekt.');
-        currentQuestionPathDisplay.textContent = 'Formulierdefinitie (web_template_for_mb_js) ontbreekt.';
+        if(currentQuestionPathDisplay) currentQuestionPathDisplay.textContent = 'Formulierdefinitie (web_template_for_mb_js) ontbreekt.';
         updateNavigationButtons();
       {% endif %}
     });
