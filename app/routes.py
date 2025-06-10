@@ -853,5 +853,38 @@ def update_comment_api(comment_id):
         db.session.rollback()
         current_app.logger.error(f"API Fout bij bijwerken commentaar ID {comment_id}: {e}", exc_info=True)
         return jsonify({"status": "error", "message": f"Serverfout bij het bijwerken van uw opmerking: {str(e)}"}), 500
+    
+@bp.route('/api/comments/delete/<int:comment_id>', methods=['DELETE'])
+def delete_comment_api(comment_id):
+    """
+    API endpoint om een specifieke opmerking te verwijderen.
+    """
+    # Haal de opmerking op uit de database.
+    # .get_or_404() geeft automatisch een 404 Not Found error als de ID niet bestaat.
+    comment_to_delete = Comment.query.get_or_404(comment_id)
+    
+    try:
+        # Verwijder het object uit de database sessie
+        db.session.delete(comment_to_delete)
+        # Voer de verwijdering door in de database
+        db.session.commit()
+        
+        current_app.logger.info(f"API: Commentaar ID {comment_id} succesvol verwijderd.")
+        
+        # Stuur een succesbericht terug naar de frontend
+        return jsonify({
+            "status": "success",
+            "message": "Opmerking succesvol verwijderd!"
+        }), 200 # 200 OK is een standaard status voor een succesvolle DELETE
 
+    except Exception as e:
+        # Als er iets misgaat, draai de transactie terug
+        db.session.rollback()
+        current_app.logger.error(f"API Fout bij verwijderen commentaar ID {comment_id}: {e}", exc_info=True)
+        
+        # Stuur een serverfout-bericht terug
+        return jsonify({
+            "status": "error", 
+            "message": f"Serverfout bij het verwijderen van de opmerking: {str(e)}"
+        }), 500
 

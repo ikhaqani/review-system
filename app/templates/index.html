@@ -150,10 +150,17 @@
         catch (e) { metaDate = comment.created_at; }
       } else { metaDate = 'Zojuist'; }
       const author = comment.author_name || 'Anoniem';
-      const editBtnHTML = isAuthorsOwn(comment) ? `<button class="btn btn-sm btn-link p-0 edit-comment-btn comment-edit-button" data-comment-id="${comment.id}">Edit</button>` : '';
+      
+      // We voegen hier de delete-knop toe, net als de edit-knop
+      const editBtnHTML = isAuthorsOwn(comment) ? `<button class="btn btn-sm btn-link p-0 edit-comment-btn" data-comment-id="${comment.id}">Edit</button>` : '';
+      const deleteBtnHTML = isAuthorsOwn(comment) ? `<button class="btn btn-sm btn-link p-0 text-danger ms-2 delete-comment-btn" data-comment-id="${comment.id}">Delete</button>` : '';
+
       return `
         <div class="comment" data-comment-id="${comment.id}">
-          ${editBtnHTML} 
+          <div class="comment-actions">
+             ${editBtnHTML}
+             ${deleteBtnHTML}
+          </div>
           <div class="comment-author">${author}</div>
           <div class="comment-text">${text}</div>
           <div class="comment-meta">${metaDate}</div>
@@ -406,28 +413,63 @@
     }
 
     if (commentsListPanelDiv) {
-        commentsListPanelDiv.addEventListener('click', (event) => { 
-            const editBtn = event.target.closest('.edit-comment-btn');
-            if (!editBtn) return;
-            const commentDiv = editBtn.closest('.comment');
-            if (!commentDiv) return;
-
-            editingCommentId = editBtn.dataset.commentId;
-
-            const commentTextElement = commentDiv.querySelector('.comment-text');
-            if (!commentTextElement) {
-                console.error('Comment text element not found for editing.');
-                return;
-            }
-            const commentHTMLFromDisplay = commentTextElement.innerHTML;
-            const textWithNewlines = commentHTMLFromDisplay.replace(/<br\s*\/?>/gi, '\n');
-            const plainTextForEditing = decodeHtmlEntities(textWithNewlines);
+        // Maak de listener 'async' om 'await' te kunnen gebruiken
+        commentsListPanelDiv.addEventListener('click', async (event) => { 
             
-            commentTextPanelInput.value = plainTextForEditing;
-            commentTextPanelInput.focus();
-            commentSubmitButton.textContent = 'Opslaan';
-            cancelEditButton.classList.remove('d-none');
-            commentFormTitle.textContent = 'Bericht bewerken:';
+            // Logica voor de Edit-knop
+            const editBtn = event.target.closest('.edit-comment-btn');
+            if (editBtn) {
+                const commentDiv = editBtn.closest('.comment');
+                if (!commentDiv) return;
+
+                editingCommentId = editBtn.dataset.commentId;
+
+                const commentTextElement = commentDiv.querySelector('.comment-text');
+                if (!commentTextElement) {
+                    console.error('Comment text element not found for editing.');
+                    return;
+                }
+                const commentHTMLFromDisplay = commentTextElement.innerHTML;
+                const textWithNewlines = commentHTMLFromDisplay.replace(/<br\s*\/?>/gi, '\n');
+                const plainTextForEditing = decodeHtmlEntities(textWithNewlines);
+                
+                commentTextPanelInput.value = plainTextForEditing;
+                commentTextPanelInput.focus();
+                commentSubmitButton.textContent = 'Opslaan';
+                cancelEditButton.classList.remove('d-none');
+                commentFormTitle.textContent = 'Bericht bewerken:';
+                return; // Stop verdere uitvoering
+            }
+
+            // --- NIEUWE LOGICA VOOR DE DELETE-KNOP ---
+            const deleteBtn = event.target.closest('.delete-comment-btn');
+            if (deleteBtn) {
+                // Vraag om bevestiging
+                if (!confirm('Weet u zeker dat u deze opmerking wilt verwijderen?')) {
+                    return;
+                }
+
+                const commentId = deleteBtn.dataset.commentId;
+                
+                try {
+                    // Stuur het DELETE-verzoek naar de backend API
+                    const response = await fetch(`/api/comments/delete/${commentId}`, {
+                        method: 'DELETE',
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        // Verwijder de opmerking uit de UI na succes
+                        deleteBtn.closest('.comment').remove();
+                    } else {
+                        throw new Error(result.message || 'Serverfout bij verwijderen.');
+                    }
+                } catch (error) {
+                    console.error('Fout bij verwijderen opmerking:', error);
+                    alert(`Kon de opmerking niet verwijderen: ${error.message}`);
+                }
+            }
         });
     }
 
